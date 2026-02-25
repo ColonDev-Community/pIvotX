@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>pIvotX — Vanilla JS</title>
+  <!--
+    Option A: Use the UMD build via a <script> tag (no npm, no build step).
+    After this, everything lives on window.PivotX.
+  -->
+  <script src="../dist/pivotx.umd.js"></script>
+</head>
+<body>
+  <canvas id="game" width="600" height="400" style="border:1px solid #ccc"></canvas>
+
+  <script>
+    // Destructure from the global
+    var Canvas    = PivotX.Canvas;
+    var Circle    = PivotX.Circle;
+    var Rectangle = PivotX.Rectangle;
+    var Line      = PivotX.Line;
+    var Label     = PivotX.Label;
+    var Point     = PivotX.Point;
+
+    // ── Setup ──────────────────────────────────────────────────────────────
+    var canvas = new Canvas("game");
+    var W = canvas.getWidth();
+    var H = canvas.getHeight();
+
+    // ── Bouncing ball state ────────────────────────────────────────────────
+    var ball = { x: W / 2, y: H / 2, r: 24, vx: 220, vy: 160 };
+
+    canvas.startLoop(function (dt) {
+      canvas.clear();
+
+      // Background
+      var bg = new Rectangle(Point(0, 0), W, H);
+      bg.fillColor = "#1a1a2e";
+      canvas.add(bg);
+
+      // Move + bounce
+      ball.x += ball.vx * dt;
+      ball.y += ball.vy * dt;
+      if (ball.x - ball.r < 0 || ball.x + ball.r > W) ball.vx *= -1;
+      if (ball.y - ball.r < 0 || ball.y + ball.r > H) ball.vy *= -1;
+
+      // Draw ball
+      var circle = new Circle(Point(ball.x, ball.y), ball.r);
+      circle.fillColor   = "#e94560";
+      circle.strokeColor = "white";
+      circle.lineWidth   = 2;
+      canvas.add(circle);
+
+      // Label
+      var lbl = new Label("Vanilla JS + UMD bundle", Point(W / 2, 20), "14px Arial");
+      lbl.fillColor = "rgba(255,255,255,0.6)";
+      canvas.add(lbl);
+    });
+  </script>
+</body>
+</html>

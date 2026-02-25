@@ -1,0 +1,12 @@
+# Source & config — not needed by consumers
+src/
+examples/
+rollup.config.js
+tsconfig.json
+*.md
+!README.md
+
+# Dev files
+node_modules/
+.DS_Store
+*.log

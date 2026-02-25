@@ -1,0 +1,67 @@
+{
+  "name": "pivotx",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Lightweight 2D game development library — Vanilla JS, TypeScript, and React",
+  "author": "Your Name <you@example.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/yourname/pivotx#readme",
+  "repository": { "type": "git", "url": "https://github.com/yourname/pivotx.git" },
+  "bugs":       { "url": "https://github.com/yourname/pivotx/issues" },
+  "keywords":   ["game", "canvas", "2d", "html5", "react", "typescript", "animation"],
+
+  "main":    "dist/pivotx.cjs.js",
+  "module":  "dist/pivotx.esm.js",
+  "browser": "dist/pivotx.umd.js",
+  "types":   "dist/index.d.ts",
+  "unpkg":   "dist/pivotx.umd.min.js",
+  "jsdelivr":"dist/pivotx.umd.min.js",
+
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+
+  "exports": {
+    ".": {
+      "import":  "./dist/pivotx.esm.js",
+      "require": "./dist/pivotx.cjs.js",
+      "types":   "./dist/index.d.ts"
+    },
+    "./react": {
+      "import":  "./dist/react.esm.js",
+      "require": "./dist/react.cjs.js",
+      "types":   "./dist/react.d.ts"
+    }
+  },
+
+  "sideEffects": false,
+
+  "scripts": {
+    "build":       "rollup -c",
+    "dev":         "rollup -c -w",
+    "type-check":  "tsc --noEmit",
+    "prepublishOnly": "npm run type-check && npm run build"
+  },
+
+  "peerDependencies": {
+    "react":     ">=17.0.0",
+    "react-dom": ">=17.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react":     { "optional": true },
+    "react-dom": { "optional": true }
+  },
+
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "@rollup/plugin-terser":       "^0.4.0",
+    "@rollup/plugin-typescript":   "^11.0.0",
+    "@types/react":                "^18.0.0",
+    "rollup":                      "^4.0.0",
+    "rollup-plugin-dts":           "^6.0.0",
+    "tslib":                       "^2.6.0",
+    "typescript":                  "^5.3.0"
+  }
+}
