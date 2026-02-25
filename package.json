@@ -36,6 +36,12 @@
     }
   },
 
+  "typesVersions": {
+    "*": {
+      "react": ["dist/react.d.ts"]
+    }
+  },
+
   "sideEffects": false,
 
   "scripts": {

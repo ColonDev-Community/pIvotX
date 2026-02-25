@@ -1,5 +1,6 @@
 import React, {
   useRef,
+  useState,
   useEffect,
   createContext,
   useContext,
@@ -53,13 +54,15 @@ export const PivotCanvas = forwardRef<PivotCanvasHandle, PropsWithChildren<Pivot
   ({ width = 600, height = 400, background, style, className, children }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const ctxRef    = useRef<CanvasRenderingContext2D | null>(null);
+    const [ctx, setCtx] = useState<CanvasRenderingContext2D | null>(null);
 
     useEffect(() => {
       const canvas = canvasRef.current;
       if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      ctxRef.current = ctx;
+      const context = canvas.getContext('2d');
+      if (!context) return;
+      ctxRef.current = context;
+      setCtx(context);
     }, []);
 
     useImperativeHandle(ref, () => ({
@@ -73,7 +76,7 @@ export const PivotCanvas = forwardRef<PivotCanvasHandle, PropsWithChildren<Pivot
     }));
 
     return (
-      <CanvasContext.Provider value={ctxRef.current}>
+      <CanvasContext.Provider value={ctx}>
         <canvas
           ref={canvasRef}
           width={width}
@@ -81,7 +84,7 @@ export const PivotCanvas = forwardRef<PivotCanvasHandle, PropsWithChildren<Pivot
           style={{ background: background ?? 'transparent', ...style }}
           className={className}
         >
-          {children}
+          {ctx && children}
         </canvas>
       </CanvasContext.Provider>
     );
