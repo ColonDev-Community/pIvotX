@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>pIvotX — CDN Demo</title>
+
+  <!--
+    ╔══════════════════════════════════════════════════════════════╗
+    ║  CDN Usage — no npm, no build step, just this one tag       ║
+    ║                                                              ║
+    ║  Production (minified):                                      ║
+    ║  <script src="https://cdn.jsdelivr.net/npm/pivotx/dist/    ║
+    ║           pivotx.umd.min.js"></script>                      ║
+    ║                                                              ║
+    ║  Local dev (unminified, with source maps):                   ║
+    ║  <script src="../dist/pivotx.umd.js"></script>              ║
+    ╚══════════════════════════════════════════════════════════════╝
+  -->
+  <script src="../dist/pivotx.umd.js"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d0d1a;
+      color: #fff;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+      gap: 40px;
+      min-height: 100vh;
+    }
+    h1 { font-size: 2rem; letter-spacing: 2px; color: #e94560; }
+    h1 span { color: #fff; }
+    p.tagline { color: #888; font-size: 0.95rem; }
+
+    .demo-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      max-width: 640px;
+    }
+    .demo-label {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: #555;
+    }
+    canvas {
+      border-radius: 8px;
+      display: block;
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    button {
+      padding: 8px 20px;
+      border-radius: 6px;
+      border: 1px solid #333;
+      background: #1a1a2e;
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: background 0.15s;
+    }
+    button:hover { background: #e94560; border-color: #e94560; }
+    code {
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 6px;
+      padding: 16px 20px;
+      font-size: 0.82rem;
+      color: #7ec8e3;
+      width: 100%;
+      max-width: 640px;
+      display: block;
+      white-space: pre;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+
+  <div style="text-align:center">
+    <h1>p<span>Ivot</span>X</h1>
+    <p class="tagline">Lightweight 2D game library · Vanilla JS · TypeScript · React</p>
+  </div>
+
+  <!-- ── Demo 1: Static shapes ─────────────────────────────────────── -->
+  <div class="demo-section">
+    <span class="demo-label">Demo 1 — Static Shapes</span>
+    <canvas id="demo1" width="620" height="200"></canvas>
+  </div>
+
+  <!-- ── Demo 2: Bouncing ball (game loop) ─────────────────────────── -->
+  <div class="demo-section">
+    <span class="demo-label">Demo 2 — Game Loop · Bouncing Ball</span>
+    <canvas id="demo2" width="620" height="280"></canvas>
+    <div class="controls">
+      <button id="btn-pause">⏸ Pause</button>
+      <button id="btn-speed">⚡ Speed Up</button>
+    </div>
+  </div>
+
+  <!-- ── Demo 3: Keyboard player ───────────────────────────────────── -->
+  <div class="demo-section">
+    <span class="demo-label">Demo 3 — Keyboard Input · Arrow Keys / WASD</span>
+    <canvas id="demo3" width="620" height="280" tabindex="0"></canvas>
+  </div>
+
+  <!-- ── CDN snippet ───────────────────────────────────────────────── -->
+  <div class="demo-section" style="width:100%;max-width:640px">
+    <span class="demo-label">CDN Install</span>
+    <code>&lt;!-- One tag. No npm. No build step. --&gt;
+&lt;script src="https://cdn.jsdelivr.net/npm/pivotx/dist/pivotx.umd.min.js"&gt;&lt;/script&gt;
+
+&lt;script&gt;
+  var { Canvas, Circle, Point } = PivotX;
+
+  var canvas = new Canvas("myCanvas");
+  var ball   = new Circle(canvas.getCenter(), 30);
+  ball.fillColor = "tomato";
+  canvas.add(ball);
+&lt;/script&gt;</code>
+  </div>
+
+<script>
+// ─── Unpack from the UMD global ───────────────────────────────────────────────
+var Canvas    = PivotX.Canvas;
+var Circle    = PivotX.Circle;
+var Rectangle = PivotX.Rectangle;
+var Line      = PivotX.Line;
+var Label     = PivotX.Label;
+var Point     = PivotX.Point;
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEMO 1 — Static shapes: Line, Circle, Rectangle, Label
+// ═══════════════════════════════════════════════════════════════════════════════
+(function () {
+  var c = new Canvas("demo1");
+
+  // Background
+  var bg = new Rectangle(Point(0, 0), 620, 200);
+  bg.fillColor = "#111827";
+  c.add(bg);
+
+  // Line
+  var line = new Line(Point(30, 170), Point(180, 40));
+  line.strokeColor = "#7ec8e3";
+  line.lineWidth   = 3;
+  c.add(line);
+  var lbl1 = new Label("Line", Point(105, 190), "12px Arial");
+  lbl1.fillColor = "#7ec8e3";
+  c.add(lbl1);
+
+  // Circle filled + stroke
+  var circle = new Circle(Point(300, 100), 60);
+  circle.fillColor   = "#e94560";
+  circle.strokeColor = "white";
+  circle.lineWidth   = 3;
+  c.add(circle);
+  var lbl2 = new Label("Circle", Point(300, 185), "12px Arial");
+  lbl2.fillColor = "#e94560";
+  c.add(lbl2);
+
+  // Rectangle
+  var rect = new Rectangle(Point(440, 40), 140, 120);
+  rect.fillColor   = "#22c55e";
+  rect.strokeColor = "white";
+  rect.lineWidth   = 2;
+  c.add(rect);
+  var lbl3 = new Label("Rectangle", Point(510, 185), "12px Arial");
+  lbl3.fillColor = "#22c55e";
+  c.add(lbl3);
+
+  // Label
+  var title = new Label("All shapes drawn with canvas.add(shape)", Point(310, 18), "bold 13px Arial");
+  title.fillColor = "rgba(255,255,255,0.35)";
+  c.add(title);
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEMO 2 — Bouncing balls with game loop, pause/speed controls
+// ═══════════════════════════════════════════════════════════════════════════════
+(function () {
+  var c  = new Canvas("demo2");
+  var W  = c.getWidth();
+  var H  = c.getHeight();
+
+  var speedMult = 1;
+  var paused    = false;
+
+  var balls = [
+    { x: 120, y: 100, r: 20, vx:  200, vy: 140, color: "#e94560" },
+    { x: 310, y: 160, r: 28, vx: -150, vy: 200, color: "#7ec8e3" },
+    { x: 500, y:  80, r: 16, vx:  180, vy: -160, color: "#22c55e" },
+    { x: 250, y: 220, r: 14, vx: -220, vy: 100, color: "#FFD700" },
+  ];
+
+  c.startLoop(function (dt) {
+    c.clear();
+
+    // Background
+    var bg = new Rectangle(Point(0, 0), W, H);
+    bg.fillColor = "#111827";
+    c.add(bg);
+
+    // Grid lines
+    for (var gx = 60; gx < W; gx += 60) {
+      var gl = new Line(Point(gx, 0), Point(gx, H));
+      gl.strokeColor = "rgba(255,255,255,0.04)";
+      c.add(gl);
+    }
+    for (var gy = 60; gy < H; gy += 60) {
+      var gl2 = new Line(Point(0, gy), Point(W, gy));
+      gl2.strokeColor = "rgba(255,255,255,0.04)";
+      c.add(gl2);
+    }
+
+    if (!paused) {
+      balls.forEach(function (b) {
+        b.x += b.vx * dt * speedMult;
+        b.y += b.vy * dt * speedMult;
+        if (b.x - b.r < 0)    { b.x = b.r;     b.vx *= -1; }
+        if (b.x + b.r > W)    { b.x = W - b.r; b.vx *= -1; }
+        if (b.y - b.r < 0)    { b.y = b.r;     b.vy *= -1; }
+        if (b.y + b.r > H)    { b.y = H - b.r; b.vy *= -1; }
+      });
+    }
+
+    balls.forEach(function (b) {
+      var circle       = new Circle(Point(b.x, b.y), b.r);
+      circle.fillColor   = b.color;
+      circle.strokeColor = "rgba(255,255,255,0.3)";
+      circle.lineWidth   = 2;
+      c.add(circle);
+    });
+
+    var status = paused ? "PAUSED" : ("Speed: " + speedMult + "x");
+    var lbl = new Label(status, Point(W - 10, 16), "bold 12px Arial");
+    lbl.fillColor  = "rgba(255,255,255,0.4)";
+    lbl.textAlign  = "right";
+    lbl.textBaseline = "top";
+    c.add(lbl);
+  });
+
+  document.getElementById("btn-pause").addEventListener("click", function () {
+    paused = !paused;
+    this.textContent = paused ? "▶ Resume" : "⏸ Pause";
+  });
+  document.getElementById("btn-speed").addEventListener("click", function () {
+    speedMult = speedMult >= 4 ? 1 : speedMult + 1;
+    this.textContent = speedMult === 1 ? "⚡ Speed Up" : ("⚡ Speed: " + speedMult + "x");
+  });
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEMO 3 — Keyboard-controlled player
+// ═══════════════════════════════════════════════════════════════════════════════
+(function () {
+  var c = new Canvas("demo3");
+  var W = c.getWidth();
+  var H = c.getHeight();
+
+  var keys = {};
+  window.addEventListener("keydown", function (e) {
+    keys[e.key] = true;
+    // Prevent page scroll on arrow keys when canvas has focus
+    if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key)) e.preventDefault();
+  });
+  window.addEventListener("keyup",   function (e) { keys[e.key] = false; });
+
+  // Player
+  var player = { x: W/2, y: H/2, size: 32, speed: 260, trail: [] };
+
+  // Stars (obstacles to dodge)
+  var stars = [];
+  for (var i = 0; i < 8; i++) {
+    stars.push({
+      x: 60 + Math.random() * (W - 120),
+      y: 60 + Math.random() * (H - 120),
+      r: 8 + Math.random() * 14,
+      pulse: Math.random() * Math.PI * 2,
+    });
+  }
+
+  var score  = 0;
+  var caught = [];
+
+  c.startLoop(function (dt) {
+    c.clear();
+
+    // Background
+    var bg = new Rectangle(Point(0, 0), W, H);
+    bg.fillColor = "#0f172a";
+    c.add(bg);
+
+    // Move player
+    var spd = player.speed;
+    if (keys["ArrowLeft"]  || keys["a"]) player.x -= spd * dt;
+    if (keys["ArrowRight"] || keys["d"]) player.x += spd * dt;
+    if (keys["ArrowUp"]    || keys["w"]) player.y -= spd * dt;
+    if (keys["ArrowDown"]  || keys["s"]) player.y += spd * dt;
+
+    var half = player.size / 2;
+    player.x = Math.max(half, Math.min(W - half, player.x));
+    player.y = Math.max(half, Math.min(H - half, player.y));
+
+    // Trail
+    player.trail.push({ x: player.x, y: player.y });
+    if (player.trail.length > 14) player.trail.shift();
+    for (var t = 0; t < player.trail.length; t++) {
+      var alpha  = (t / player.trail.length) * 0.25;
+      var tsize  = player.size * (t / player.trail.length) * 0.6;
+      var trect  = new Rectangle(
+        Point(player.trail[t].x - tsize/2, player.trail[t].y - tsize/2),
+        tsize, tsize
+      );
+      trect.fillColor = "rgba(233,69,96," + alpha + ")";
+      c.add(trect);
+    }
+
+    // Pulsing collectibles
+    var toRemove = [];
+    for (var s = 0; s < stars.length; s++) {
+      var star = stars[s];
+      star.pulse += dt * 3;
+      var pr = star.r + Math.sin(star.pulse) * 3;
+
+      // Collision
+      var dx = player.x - star.x;
+      var dy = player.y - star.y;
+      if (Math.sqrt(dx*dx + dy*dy) < half + pr) {
+        score += Math.round(star.r * 10);
+        toRemove.push(s);
+        // Respawn somewhere new
+        stars.push({
+          x: 60 + Math.random() * (W - 120),
+          y: 60 + Math.random() * (H - 120),
+          r: 8 + Math.random() * 14,
+          pulse: 0,
+        });
+        continue;
+      }
+
+      var glow = new Circle(Point(star.x, star.y), pr + 6);
+      glow.fillColor = "rgba(255,215,0,0.08)";
+      c.add(glow);
+
+      var dot = new Circle(Point(star.x, star.y), pr);
+      dot.fillColor   = "#FFD700";
+      dot.strokeColor = "rgba(255,255,255,0.4)";
+      dot.lineWidth   = 1.5;
+      c.add(dot);
+    }
+    for (var r = toRemove.length - 1; r >= 0; r--) stars.splice(toRemove[r], 1);
+
+    // Player
+    var prect = new Rectangle(Point(player.x - half, player.y - half), player.size, player.size);
+    prect.fillColor   = "#e94560";
+    prect.strokeColor = "rgba(255,255,255,0.6)";
+    prect.lineWidth   = 2;
+    c.add(prect);
+
+    // Score
+    var scoreLbl = new Label("Score: " + score, Point(14, 20), "bold 16px Arial");
+    scoreLbl.fillColor   = "#FFD700";
+    scoreLbl.textAlign   = "left";
+    scoreLbl.textBaseline = "middle";
+    c.add(scoreLbl);
+
+    // Hint
+    var hint = new Label("Arrow Keys or WASD — collect the dots", Point(W/2, H - 14), "12px Arial");
+    hint.fillColor   = "rgba(255,255,255,0.25)";
+    hint.textBaseline = "bottom";
+    c.add(hint);
+  });
+})();
+</script>
+</body>
+</html>
