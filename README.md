@@ -5,25 +5,25 @@ Lightweight 2D game development library. One package, three ways to use it.
 | Target | Import style | Build required? |
 |---|---|---|
 | Vanilla JS | `<script src="cdn">` → `window.PivotX` | No |
-| TypeScript | `import { Canvas } from 'pivotx'` | Yes (your project) |
-| React | `import { PivotCanvas } from 'pivotx/react'` | Yes (your project) |
+| TypeScript | `import { Canvas } from '@colon-dev/pivotx'` | Yes (your project) |
+| React | `import { PivotCanvas } from '@colon-dev/pivotx/react'` | Yes (your project) |
 
 ---
 
 ## Install
 
 ```bash
-npm install pivotx
+npm install @colon-dev/pivotx
 ```
 
 Or via CDN (no npm, no build step):
 
 ```html
 <!-- Minified — for production -->
-<script src="https://cdn.jsdelivr.net/npm/pivotx/dist/pivotx.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@colon-dev/pivotx/dist/pivotx.umd.min.js"></script>
 
 <!-- Unminified — for development -->
-<script src="https://cdn.jsdelivr.net/npm/pivotx/dist/pivotx.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@colon-dev/pivotx/dist/pivotx.umd.js"></script>
 ```
 
 ---
@@ -36,7 +36,7 @@ Drop one `<script>` tag in and everything is on `window.PivotX`.
 
 ```html
 <canvas id="game" width="600" height="400"></canvas>
-<script src="https://cdn.jsdelivr.net/npm/pivotx/dist/pivotx.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@colon-dev/pivotx/dist/pivotx.umd.min.js"></script>
 <script>
   var { Canvas, Circle, Rectangle, Line, Label, Point } = PivotX;
 
@@ -72,8 +72,8 @@ Drop one `<script>` tag in and everything is on `window.PivotX`.
 ### TypeScript (ESM)
 
 ```ts
-import { Canvas, Circle, Rectangle, Line, Label, Point } from 'pivotx';
-import type { IPoint } from 'pivotx';
+import { Canvas, Circle, Rectangle, Line, Label, Point } from '@colon-dev/pivotx';
+import type { IPoint } from '@colon-dev/pivotx';
 
 const canvas = new Canvas('game');
 const W      = canvas.getWidth();
@@ -113,7 +113,7 @@ new Canvas(42);           // ❌ Error: Argument of type 'number' is not assigna
 ### React — JSX components
 
 ```tsx
-import { PivotCanvas, PivotCircle, PivotRectangle, PivotLabel } from 'pivotx/react';
+import { PivotCanvas, PivotCircle, PivotRectangle, PivotLabel } from '@colon-dev/pivotx/react';
 
 function MyScene() {
   return (
@@ -140,7 +140,7 @@ function MyScene() {
 
 ```tsx
 import { useState, useRef }          from 'react';
-import { PivotCanvas, PivotCircle, useGameLoop } from 'pivotx/react';
+import { PivotCanvas, PivotCircle, useGameLoop } from '@colon-dev/pivotx/react';
 
 function BouncingBall() {
   // useRef for mutable game state — doesn't cause extra re-renders
@@ -308,7 +308,7 @@ useGameLoop((dt: number) => {
 Implement `IDrawable` to create shapes that work with `canvas.add()`:
 
 ```ts
-import type { IDrawable } from 'pivotx';
+import type { IDrawable } from '@colon-dev/pivotx';
 
 class Star implements IDrawable {
   readonly tag = 'star';
@@ -371,9 +371,9 @@ npm publish
 
 After publishing, users can use the CDN immediately:
 ```html
-<script src="https://cdn.jsdelivr.net/npm/pivotx/dist/pivotx.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@colon-dev/pivotx/dist/pivotx.umd.min.js"></script>
 <!-- or -->
-<script src="https://unpkg.com/pivotx/dist/pivotx.umd.min.js"></script>
+<script src="https://unpkg.com/@colon-dev/pivotx/dist/pivotx.umd.min.js"></script>
 ```
 
 ---

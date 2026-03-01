@@ -8,8 +8,8 @@ const tsPlugin = () => typescript({ tsconfig: './tsconfig.json' });
 const banner = `/*!
  * pIvotX v1.0.0
  * Lightweight 2D game library — Vanilla JS, TypeScript & React
- * (c) ${new Date().getFullYear()} Your Name | MIT License
- * https://github.com/yourname/pivotx
+ * (c) ${new Date().getFullYear()} ColonDev Community | MIT License
+ * https://github.com/ColonDev-Community/pIvotX
  */`;
 
 export default [

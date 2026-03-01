@@ -1,14 +1,15 @@
 {
-  "name": "pivotx",
+  "name": "@colon-dev/pivotx",
   "type": "module",
   "version": "1.0.0",
   "description": "Lightweight 2D game development library — Vanilla JS, TypeScript, and React",
-  "author": "Your Name <you@example.com>",
+  "author": "sachithamh@gmail.com",
   "license": "MIT",
-  "homepage": "https://github.com/yourname/pivotx#readme",
-  "repository": { "type": "git", "url": "https://github.com/yourname/pivotx.git" },
-  "bugs":       { "url": "https://github.com/yourname/pivotx/issues" },
+  "homepage": "https://github.com/ColonDev-Community/pIvotX#readme",
+  "repository": { "type": "git", "url": "git+https://github.com/ColonDev-Community/pIvotX.git" },
+  "bugs":       { "url": "https://github.com/ColonDev-Community/pIvotX/issues" },
   "keywords":   ["game", "canvas", "2d", "html5", "react", "typescript", "animation"],
+  "publishConfig": { "access": "public" },
 
   "main":    "dist/pivotx.cjs.js",
   "module":  "dist/pivotx.esm.js",
@@ -33,7 +34,8 @@
       "import":  "./dist/react.esm.js",
       "require": "./dist/react.cjs.js",
       "types":   "./dist/react.d.ts"
-    }
+    },
+    "./package.json": "./package.json"
   },
 
   "typesVersions": {
