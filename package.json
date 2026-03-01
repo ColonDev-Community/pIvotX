@@ -1,7 +1,7 @@
 {
   "name": "@colon-dev/pivotx",
   "type": "module",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Lightweight 2D game development library — Vanilla JS, TypeScript, and React",
   "author": "sachithamh@gmail.com",
   "license": "MIT",

@@ -6,7 +6,7 @@ import dts        from 'rollup-plugin-dts';
 const tsPlugin = () => typescript({ tsconfig: './tsconfig.json' });
 
 const banner = `/*!
- * pIvotX v1.0.0
+ * pIvotX v1.0.1
  * Lightweight 2D game library — Vanilla JS, TypeScript & React
  * (c) ${new Date().getFullYear()} ColonDev Community | MIT License
  * https://github.com/ColonDev-Community/pIvotX
