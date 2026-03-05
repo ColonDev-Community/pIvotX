@@ -327,6 +327,7 @@ canvas.add(bg);
 | `height` | `number \| null` | `null` | Display height (`null` = natural) |
 | `opacity` | `number` | `1` | 0 (transparent) to 1 (opaque) |
 | `rotation` | `number` | `0` | Rotation in radians (around centre) |
+| `pixelPerfect` | `boolean` | `false` | Disable image smoothing for crisp pixel art |
 
 | Method / Getter | Returns | Description |
 |---|---|---|
@@ -373,6 +374,7 @@ canvas.add(hero);
 | `flipX` | `boolean` | `false` | Mirror horizontally |
 | `flipY` | `boolean` | `false` | Mirror vertically |
 | `opacity` | `number` | `1` | 0–1 opacity |
+| `pixelPerfect` | `boolean` | `true` | Disable image smoothing for crisp pixel art |
 
 | Method / Getter | Returns | Description |
 |---|---|---|
@@ -579,6 +581,7 @@ const nearby = tilemap.getSolidTilesInRegion(playerAABB);
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `solidTiles` | `Set<number>` | `new Set()` | Frame indices considered solid |
+| `pixelPerfect` | `boolean` | `true` | Disable image smoothing for crisp pixel art |
 
 | Method | Returns | Description |
 |---|---|---|
@@ -684,6 +687,7 @@ Draws an image on the canvas.
 | `height` | `number` | natural | Display height |
 | `opacity` | `number` | `1` | 0–1 opacity |
 | `rotation` | `number` | `0` | Rotation in radians |
+| `pixelPerfect` | `boolean` | `false` | Disable image smoothing for crisp pixel art |
 
 ```tsx
 <PivotImage src="/hero.png" position={{ x: 100, y: 50 }} width={64} height={64} />
@@ -702,6 +706,7 @@ Draws a single sprite frame.
 | `flipX` | `boolean` | `false` | Mirror horizontally |
 | `flipY` | `boolean` | `false` | Mirror vertically |
 | `opacity` | `number` | `1` | 0–1 opacity |
+| `pixelPerfect` | `boolean` | `true` | Disable image smoothing for crisp pixel art |
 
 ```tsx
 <PivotSprite position={{ x: 100, y: 200 }} sheet={heroSheet} frame={currentFrame} scale={2} />
@@ -735,6 +740,7 @@ Draws a grid-based tile map.
 | `mapData` | `number[][]` | — | 2D map data (-1 = empty) |
 | `tileSize` | `number` | — | Rendered tile size |
 | `solidTiles` | `Set<number>` | `new Set()` | Solid tile indices |
+| `pixelPerfect` | `boolean` | `true` | Disable image smoothing for crisp pixel art |
 
 ```tsx
 <PivotTilemap sheet={tileSheet} mapData={levelData} tileSize={32} />

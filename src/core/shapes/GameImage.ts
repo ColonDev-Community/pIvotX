@@ -35,6 +35,11 @@ export class GameImage implements IDrawable {
   public opacity:  number = 1;
   /** Rotation in radians. Rotates around the image centre. */
   public rotation: number = 0;
+  /**
+   * When `true`, disables image smoothing so scaled-up pixel art stays
+   * crisp instead of blurry.  Defaults to `false` (smooth scaling).
+   */
+  public pixelPerfect: boolean = false;
 
   private _img:    HTMLImageElement;
   private _loaded: boolean;
@@ -80,6 +85,10 @@ export class GameImage implements IDrawable {
 
     ctx.save();
     ctx.globalAlpha = this.opacity;
+
+    if (this.pixelPerfect) {
+      ctx.imageSmoothingEnabled = false;
+    }
 
     if (this.rotation !== 0) {
       const cx = this.position.x + w / 2;

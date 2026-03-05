@@ -863,6 +863,9 @@ hero.width   = 64;      // display width (null = natural)
 hero.height  = 64;      // display height (null = natural)
 hero.opacity = 0.8;     // semi-transparent
 hero.rotation = Math.PI / 4;  // rotate 45 degrees
+
+// For pixel art scaled up, disable smoothing:
+hero.pixelPerfect = true;  // crisp edges instead of blurry
 ```
 
 ### Checking load state and swapping images
@@ -957,6 +960,14 @@ hero.flipY = true;
 
 // Half-transparent ghost effect
 hero.opacity = 0.5;
+```
+
+### Pixel-perfect rendering
+
+By default, `Sprite` sets `pixelPerfect = true`, which disables the browser's image smoothing. This keeps small pixel art crisp when scaled up (e.g. 16×16 → 64×64). If you want smooth (bilinear) scaling instead, turn it off:
+
+```ts
+hero.pixelPerfect = false;  // smooth scaling (for high-res art)
 ```
 
 ### Computed dimensions
@@ -1343,6 +1354,14 @@ Tell the tilemap which frame indices are solid for collision:
 
 ```ts
 tilemap.solidTiles = new Set([0, 1, 2, 3, 4, 5]);
+```
+
+### Pixel-perfect tiles
+
+Like `Sprite`, `Tilemap` defaults to `pixelPerfect = true` so pixel-art tiles stay crisp when the rendered `tileSize` is larger than the source frame size:
+
+```ts
+tilemap.pixelPerfect = false;  // opt into smooth scaling if needed
 ```
 
 ### Point-based collision check

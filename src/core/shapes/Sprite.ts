@@ -57,6 +57,11 @@ export class Sprite implements IDrawable {
   public flipY:   boolean = false;
   /** Opacity from 0 (transparent) to 1 (opaque). */
   public opacity: number  = 1;
+  /**
+   * When `true`, disables image smoothing so scaled-up pixel art stays
+   * crisp instead of blurry.  Defaults to `true`.
+   */
+  public pixelPerfect: boolean = true;
 
   private _frame: number = 0;
 
@@ -120,6 +125,10 @@ export class Sprite implements IDrawable {
 
     ctx.save();
     ctx.globalAlpha = this.opacity;
+
+    if (this.pixelPerfect) {
+      ctx.imageSmoothingEnabled = false;
+    }
 
     // Translate to centre of the sprite for flip/scale transforms
     const cx = this.position.x + dw / 2;

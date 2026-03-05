@@ -163,6 +163,8 @@ export interface PivotImageProps {
   opacity?:   number;
   /** Rotation in radians. */
   rotation?:  number;
+  /** Disable image smoothing for crisp pixel art. */
+  pixelPerfect?: boolean;
 }
 
 /**
@@ -171,16 +173,17 @@ export interface PivotImageProps {
  * @example
  * <PivotImage src="/hero.png" position={{ x: 100, y: 50 }} width={64} height={64} />
  */
-export function PivotImage({ src, position, width, height, opacity, rotation }: PivotImageProps) {
+export function PivotImage({ src, position, width, height, opacity, rotation, pixelPerfect }: PivotImageProps) {
   const ctx = useCanvasContext();
 
   useEffect(() => {
     if (!ctx) return;
     const shape = new CoreGameImage(position, src);
-    if (width    != null) shape.width    = width;
-    if (height   != null) shape.height   = height;
-    if (opacity  != null) shape.opacity  = opacity;
-    if (rotation != null) shape.rotation = rotation;
+    if (width        != null) shape.width        = width;
+    if (height       != null) shape.height        = height;
+    if (opacity      != null) shape.opacity       = opacity;
+    if (rotation     != null) shape.rotation      = rotation;
+    if (pixelPerfect != null) shape.pixelPerfect  = pixelPerfect;
     shape.draw(ctx);
   });
 
@@ -204,6 +207,8 @@ export interface PivotSpriteProps {
   flipY?:    boolean;
   /** Opacity from 0 to 1. */
   opacity?:  number;
+  /** Disable image smoothing for crisp pixel art (default true). */
+  pixelPerfect?: boolean;
 }
 
 /**
@@ -212,17 +217,18 @@ export interface PivotSpriteProps {
  * @example
  * <PivotSprite position={{ x: 100, y: 200 }} sheet={heroSheet} frame={frameRef.current} scale={2} />
  */
-export function PivotSprite({ position, sheet, frame, scale, flipX, flipY, opacity }: PivotSpriteProps) {
+export function PivotSprite({ position, sheet, frame, scale, flipX, flipY, opacity, pixelPerfect }: PivotSpriteProps) {
   const ctx = useCanvasContext();
 
   useEffect(() => {
     if (!ctx) return;
     const sprite   = new CoreSprite(position, sheet);
     sprite.frame   = frame;
-    if (scale   != null) sprite.scale   = scale;
-    if (flipX   != null) sprite.flipX   = flipX;
-    if (flipY   != null) sprite.flipY   = flipY;
-    if (opacity != null) sprite.opacity = opacity;
+    if (scale        != null) sprite.scale        = scale;
+    if (flipX        != null) sprite.flipX        = flipX;
+    if (flipY        != null) sprite.flipY        = flipY;
+    if (opacity      != null) sprite.opacity      = opacity;
+    if (pixelPerfect != null) sprite.pixelPerfect  = pixelPerfect;
     sprite.draw(ctx);
   });
 
@@ -281,6 +287,8 @@ export interface PivotTilemapProps {
   tileSize:    number;
   /** Set of frame indices considered solid (optional, for collision queries). */
   solidTiles?: Set<number>;
+  /** Disable image smoothing for crisp pixel art (default true). */
+  pixelPerfect?: boolean;
 }
 
 /**
@@ -289,13 +297,14 @@ export interface PivotTilemapProps {
  * @example
  * <PivotTilemap sheet={tileSheet} mapData={levelData} tileSize={32} />
  */
-export function PivotTilemap({ sheet, mapData, tileSize, solidTiles }: PivotTilemapProps) {
+export function PivotTilemap({ sheet, mapData, tileSize, solidTiles, pixelPerfect }: PivotTilemapProps) {
   const ctx = useCanvasContext();
 
   useEffect(() => {
     if (!ctx) return;
     const tm = new CoreTilemap(sheet, mapData, tileSize);
-    if (solidTiles) tm.solidTiles = solidTiles;
+    if (solidTiles)    tm.solidTiles   = solidTiles;
+    if (pixelPerfect != null) tm.pixelPerfect = pixelPerfect;
     tm.draw(ctx);
   });
 

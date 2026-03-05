@@ -45,6 +45,12 @@ export class Tilemap implements IDrawable {
   public solidTiles: Set<number> = new Set();
 
   /**
+   * When `true`, disables image smoothing so pixel-art tiles stay crisp
+   * when scaled up.  Defaults to `true`.
+   */
+  public pixelPerfect: boolean = true;
+
+  /**
    * @param sheet     SpriteSheet containing the tile graphics.
    * @param mapData   2D array (rows × columns) of frame indices. -1 = empty.
    * @param tileSize  Rendered size of each tile in pixels (tiles are drawn as squares).
@@ -165,6 +171,11 @@ export class Tilemap implements IDrawable {
     const s  = this._sheet;
     const ts = this._tileSize;
 
+    const prevSmoothing = ctx.imageSmoothingEnabled;
+    if (this.pixelPerfect) {
+      ctx.imageSmoothingEnabled = false;
+    }
+
     for (let row = 0; row < this._mapData.length; row++) {
       const rowData = this._mapData[row];
       for (let col = 0; col < rowData.length; col++) {
@@ -188,5 +199,7 @@ export class Tilemap implements IDrawable {
         );
       }
     }
+
+    ctx.imageSmoothingEnabled = prevSmoothing;
   }
 }
