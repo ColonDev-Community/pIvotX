@@ -115,6 +115,27 @@
     <canvas id="demo3" width="620" height="280" tabindex="0"></canvas>
   </div>
 
+  <!-- ── Demo 4: Sprite Animation ──────────────────────────────────── -->
+  <div class="demo-section">
+    <span class="demo-label">Demo 4 — Sprite Animation · AssetLoader · SpriteAnimator</span>
+    <canvas id="demo4" width="620" height="240"></canvas>
+    <p style="color:#555;font-size:0.8rem">← → to run, Space to jump</p>
+  </div>
+
+  <!-- ── Demo 5: Parallax + Camera ─────────────────────────────────── -->
+  <div class="demo-section">
+    <span class="demo-label">Demo 5 — TiledBackground · Parallax Layers · Camera</span>
+    <canvas id="demo5" width="620" height="280"></canvas>
+    <p style="color:#555;font-size:0.8rem">← → to scroll the camera</p>
+  </div>
+
+  <!-- ── Demo 6: Tilemap + Platform ────────────────────────────────── -->
+  <div class="demo-section">
+    <span class="demo-label">Demo 6 — Tilemap · Platform · AABB Collision</span>
+    <canvas id="demo6" width="620" height="280"></canvas>
+    <p style="color:#555;font-size:0.8rem">← → to move, Space to jump, collect coins!</p>
+  </div>
+
   <!-- ── CDN snippet ───────────────────────────────────────────────── -->
   <div class="demo-section" style="width:100%;max-width:640px">
     <span class="demo-label">CDN Install</span>
@@ -133,12 +154,23 @@
 
 <script>
 // ─── Unpack from the UMD global ───────────────────────────────────────────────
-var Canvas    = PivotX.Canvas;
-var Circle    = PivotX.Circle;
-var Rectangle = PivotX.Rectangle;
-var Line      = PivotX.Line;
-var Label     = PivotX.Label;
-var Point     = PivotX.Point;
+var Canvas            = PivotX.Canvas;
+var Circle            = PivotX.Circle;
+var Rectangle         = PivotX.Rectangle;
+var Line              = PivotX.Line;
+var Label             = PivotX.Label;
+var Point             = PivotX.Point;
+var AssetLoader       = PivotX.AssetLoader;
+var GameImage         = PivotX.GameImage;
+var Sprite            = PivotX.Sprite;
+var SpriteAnimator    = PivotX.SpriteAnimator;
+var Camera            = PivotX.Camera;
+var TiledBackground   = PivotX.TiledBackground;
+var Platform          = PivotX.Platform;
+var Tilemap           = PivotX.Tilemap;
+var createAABB        = PivotX.createAABB;
+var aabbOverlap       = PivotX.aabbOverlap;
+var aabbOverlapDepth  = PivotX.aabbOverlapDepth;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // DEMO 1 — Static shapes: Line, Circle, Rectangle, Label
@@ -381,6 +413,333 @@ var Point     = PivotX.Point;
     hint.fillColor   = "rgba(255,255,255,0.25)";
     hint.textBaseline = "bottom";
     c.add(hint);
+  });
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEMO 4 — Sprite Animation (AssetLoader + Sprite + SpriteAnimator)
+// ═══════════════════════════════════════════════════════════════════════════════
+(async function () {
+  var c = new Canvas("demo4");
+  var W = c.getWidth();
+  var H = c.getHeight();
+
+  // Load spritesheet
+  var heroImg = await AssetLoader.loadImage("assets/hero-sheet.png");
+  var heroSheet = Sprite.createSheet(heroImg, 16, 16, 10);
+  var heroSprite = new Sprite(Point(W / 2 - 32, H - 100), heroSheet);
+  heroSprite.scale = 4;
+
+  var animator = new SpriteAnimator(heroSprite);
+  animator
+    .addClip("idle", { frames: [0, 1, 2, 3], fps: 5, loop: true })
+    .addClip("run",  { frames: [4, 5, 6, 7], fps: 8, loop: true })
+    .addClip("jump", { frames: [8, 9],       fps: 4, loop: false });
+  animator.play("idle");
+
+  var player = { x: W / 2 - 32, y: H - 100, vy: 0, grounded: true };
+  var GRAVITY = 600;
+  var GROUND_Y = H - 36;
+
+  var keys4 = {};
+  window.addEventListener("keydown", function (e) { keys4[e.key] = true; });
+  window.addEventListener("keyup",   function (e) { keys4[e.key] = false; });
+
+  c.startLoop(function (dt) {
+    c.clear();
+
+    // Background
+    var bg = new Rectangle(Point(0, 0), W, H);
+    bg.fillColor = "#111827";
+    c.add(bg);
+
+    // Ground
+    var ground = new Rectangle(Point(0, GROUND_Y), W, H - GROUND_Y);
+    ground.fillColor = "#3a5a40";
+    c.add(ground);
+
+    // Input
+    var moving = false;
+    if (keys4["ArrowLeft"]  || keys4["a"]) { player.x -= 180 * dt; heroSprite.flipX = true;  moving = true; }
+    if (keys4["ArrowRight"] || keys4["d"]) { player.x += 180 * dt; heroSprite.flipX = false; moving = true; }
+    if ((keys4[" "] || keys4["ArrowUp"]) && player.grounded) {
+      player.vy = -350;
+      player.grounded = false;
+    }
+
+    player.vy += GRAVITY * dt;
+    player.y  += player.vy * dt;
+    if (player.y >= GROUND_Y - heroSprite.drawHeight) {
+      player.y  = GROUND_Y - heroSprite.drawHeight;
+      player.vy = 0;
+      player.grounded = true;
+    }
+    player.x = Math.max(0, Math.min(W - heroSprite.drawWidth, player.x));
+
+    if (!player.grounded)   animator.play("jump");
+    else if (moving)        animator.play("run");
+    else                    animator.play("idle");
+
+    animator.update(dt);
+    heroSprite.position = Point(player.x, player.y);
+    c.add(heroSprite);
+
+    var info = new Label("Clip: " + animator.currentClip + "  Frame: " + heroSprite.frame, Point(W / 2, 16), "12px monospace");
+    info.fillColor = "rgba(255,255,255,0.5)";
+    c.add(info);
+  });
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEMO 5 — TiledBackground + Parallax + Camera
+// ═══════════════════════════════════════════════════════════════════════════════
+(async function () {
+  var c = new Canvas("demo5");
+  var W = c.getWidth();
+  var H = c.getHeight();
+
+  var assets = await AssetLoader.loadAssets({
+    sky:   "assets/sky-tile.png",
+    hills: "assets/hills-tile.png",
+  });
+
+  var sky = new TiledBackground(assets.sky, W, H);
+  sky.parallaxFactor = 0.15;
+
+  var hills = new TiledBackground(assets.hills, W, H);
+  hills.parallaxFactor = 0.4;
+
+  var camera = new Camera(W, H);
+  var cameraX = 0;
+  var WORLD_W = 2000;
+
+  var keys5 = {};
+  window.addEventListener("keydown", function (e) { keys5[e.key] = true; });
+  window.addEventListener("keyup",   function (e) { keys5[e.key] = false; });
+
+  // Some static world objects to show camera scrolling
+  var worldObjects = [];
+  for (var i = 0; i < 12; i++) {
+    worldObjects.push({
+      x: 80 + i * 160,
+      y: H - 80 - Math.random() * 100,
+      w: 30 + Math.random() * 40,
+      h: 40 + Math.random() * 60,
+      color: ["#e94560","#22c55e","#7ec8e3","#FFD700","#a855f7"][i % 5],
+    });
+  }
+
+  c.startLoop(function (dt) {
+    c.clear();
+
+    var speed = 200;
+    var scrollDelta = 0;
+    if (keys5["ArrowRight"] || keys5["d"]) { scrollDelta =  speed * dt; }
+    if (keys5["ArrowLeft"]  || keys5["a"]) { scrollDelta = -speed * dt; }
+    cameraX += scrollDelta;
+    cameraX = Math.max(0, Math.min(WORLD_W - W, cameraX));
+
+    sky.scroll(scrollDelta);
+    hills.scroll(scrollDelta);
+
+    // Backgrounds (screen space)
+    c.add(sky);
+    c.add(hills);
+
+    // Ground
+    camera.position = Point(cameraX, 0);
+    camera.begin(c.ctx);
+
+    // Ground strip
+    var gnd = new Rectangle(Point(0, H - 40), WORLD_W, 40);
+    gnd.fillColor = "#3a5a40";
+    c.add(gnd);
+
+    // World objects
+    for (var i = 0; i < worldObjects.length; i++) {
+      var obj = worldObjects[i];
+      var rect = new Rectangle(Point(obj.x, obj.y), obj.w, obj.h);
+      rect.fillColor   = obj.color;
+      rect.strokeColor = "rgba(255,255,255,0.3)";
+      rect.lineWidth   = 1;
+      c.add(rect);
+    }
+
+    camera.end(c.ctx);
+
+    // HUD
+    var posLbl = new Label("Camera X: " + Math.round(cameraX) + " / " + (WORLD_W - W), Point(W / 2, 16), "12px monospace");
+    posLbl.fillColor = "rgba(255,255,255,0.5)";
+    c.add(posLbl);
+
+    var layerLbl = new Label("Sky: 0.15x parallax  |  Hills: 0.4x parallax  |  World: 1x", Point(W / 2, H - 12), "11px Arial");
+    layerLbl.fillColor = "rgba(255,255,255,0.3)";
+    c.add(layerLbl);
+  });
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEMO 6 — Tilemap + Platform + AABB Collision + Coins
+// ═══════════════════════════════════════════════════════════════════════════════
+(async function () {
+  var c = new Canvas("demo6");
+  var W = c.getWidth();
+  var H = c.getHeight();
+
+  var assets = await AssetLoader.loadAssets({
+    tileset: "assets/tileset.png",
+    coin:    "assets/coin-sheet.png",
+    hero:    "assets/hero-sheet.png",
+  });
+
+  var TILE = 28;
+  var tileSheet = Sprite.createSheet(assets.tileset, 16, 16, 8);
+  var coinSheet = Sprite.createSheet(assets.coin, 16, 16, 6);
+  var heroSheet = Sprite.createSheet(assets.hero, 16, 16, 10);
+
+  // Map: 22 cols × 10 rows
+  //prettier-ignore
+  var mapData = [
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 7, 7,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1, 0, 1, 2,-1,-1,-1,-1,-1, 0, 1, 2,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1, 7, 7,-1,-1,-1,-1,-1,-1, 7, 7, 7,-1,-1,-1,-1,-1,-1,-1,-1],
+    [ 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
+    [ 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6],
+  ];
+
+  var tilemap = new Tilemap(tileSheet, mapData, TILE);
+  tilemap.solidTiles = new Set([0, 1, 2, 3, 4, 5, 6, 7]);
+
+  // Coins
+  var coins = [
+    { x: 7 * TILE, y: 4 * TILE },
+    { x: 4 * TILE, y: 6 * TILE },
+    { x: 12 * TILE, y: 6 * TILE },
+    { x: 15 * TILE, y: 4 * TILE },
+    { x: 20 * TILE, y: 2 * TILE },
+  ];
+  var coinFrame = 0;
+  var coinTimer = 0;
+  var score = 0;
+
+  // Player
+  var heroSprite = new Sprite(Point(0, 0), heroSheet);
+  heroSprite.scale = 2;
+  var animator = new SpriteAnimator(heroSprite);
+  animator
+    .addClip("idle", { frames: [0, 1, 2, 3], fps: 5, loop: true })
+    .addClip("run",  { frames: [4, 5, 6, 7], fps: 8, loop: true })
+    .addClip("jump", { frames: [8, 9],       fps: 4, loop: false });
+  animator.play("idle");
+
+  var player = { x: 2 * TILE, y: 6 * TILE, vx: 0, vy: 0, w: 20, h: 26, grounded: false };
+  var GRAVITY = 700;
+
+  var keys6 = {};
+  window.addEventListener("keydown", function (e) { keys6[e.key] = true; });
+  window.addEventListener("keyup",   function (e) { keys6[e.key] = false; });
+
+  c.startLoop(function (dt) {
+    c.clear();
+
+    // BG
+    var bg = new Rectangle(Point(0, 0), W, H);
+    bg.fillColor = "#111827";
+    c.add(bg);
+
+    // Input
+    player.vx = 0;
+    if (keys6["ArrowRight"] || keys6["d"]) { player.vx =  180; heroSprite.flipX = false; }
+    if (keys6["ArrowLeft"]  || keys6["a"]) { player.vx = -180; heroSprite.flipX = true;  }
+    if ((keys6[" "] || keys6["ArrowUp"] || keys6["w"]) && player.grounded) {
+      player.vy = -380;
+      player.grounded = false;
+    }
+
+    // Physics
+    player.vy += GRAVITY * dt;
+    player.x  += player.vx * dt;
+    player.y  += player.vy * dt;
+
+    // Tilemap collision
+    player.grounded = false;
+
+    // Horizontal
+    var pBox = createAABB(player.x, player.y, player.w, player.h);
+    var nearH = tilemap.getSolidTilesInRegion(pBox);
+    for (var i = 0; i < nearH.length; i++) {
+      var d = aabbOverlapDepth(createAABB(player.x, player.y, player.w, player.h), nearH[i]);
+      if (d && d.x < d.y) {
+        if (player.vx > 0) player.x -= d.x; else player.x += d.x;
+        player.vx = 0;
+      }
+    }
+
+    // Vertical
+    pBox = createAABB(player.x, player.y, player.w, player.h);
+    var nearV = tilemap.getSolidTilesInRegion(pBox);
+    for (var i = 0; i < nearV.length; i++) {
+      var d = aabbOverlapDepth(createAABB(player.x, player.y, player.w, player.h), nearV[i]);
+      if (d && d.y <= d.x) {
+        if (player.vy > 0) { player.y -= d.y; player.vy = 0; player.grounded = true; }
+        else               { player.y += d.y; player.vy = 0; }
+      }
+    }
+
+    // World bounds
+    if (player.x < 0) player.x = 0;
+    if (player.y > H + 50) { player.x = 2 * TILE; player.y = 6 * TILE; player.vy = 0; }
+
+    // Coin collection
+    var pAABB = createAABB(player.x, player.y, player.w, player.h);
+    var remain = [];
+    for (var i = 0; i < coins.length; i++) {
+      var cAABB = createAABB(coins[i].x - 10, coins[i].y - 10, 20, 20);
+      if (aabbOverlap(pAABB, cAABB)) { score += 100; }
+      else { remain.push(coins[i]); }
+    }
+    coins = remain;
+
+    // Coin animation
+    coinTimer += dt;
+    if (coinTimer > 0.12) { coinTimer = 0; coinFrame = (coinFrame + 1) % coinSheet.totalFrames; }
+
+    // Player animation
+    if (!player.grounded)    animator.play("jump");
+    else if (player.vx !== 0) animator.play("run");
+    else                     animator.play("idle");
+    animator.update(dt);
+    heroSprite.position = Point(player.x - 6, player.y - 3);
+
+    // Draw
+    c.add(tilemap);
+
+    for (var i = 0; i < coins.length; i++) {
+      var cs = new Sprite(Point(coins[i].x - 14, coins[i].y - 14), coinSheet);
+      cs.frame = coinFrame;
+      cs.scale = 2;
+      c.add(cs);
+    }
+
+    c.add(heroSprite);
+
+    // HUD
+    var scoreLbl = new Label("Coins: " + score, Point(14, 16), "bold 14px Arial");
+    scoreLbl.fillColor = "#FFD700";
+    scoreLbl.textAlign = "left";
+    scoreLbl.textBaseline = "top";
+    c.add(scoreLbl);
+
+    if (coins.length === 0) {
+      var winLbl = new Label("All collected!", Point(W / 2, 16), "bold 14px Arial");
+      winLbl.fillColor = "#22c55e";
+      c.add(winLbl);
+    }
   });
 })();
 </script>

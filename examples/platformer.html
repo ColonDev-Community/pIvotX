@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>pIvotX — Platformer Demo</title>
+  <script src="../dist/pivotx.umd.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d0d1a;
+      color: #fff;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+      gap: 20px;
+    }
+    h1 { font-size: 1.6rem; color: #e94560; }
+    h1 span { color: #fff; }
+    p { color: #888; font-size: 0.9rem; max-width: 640px; text-align: center; }
+    canvas { border-radius: 8px; display: block; image-rendering: pixelated; }
+    .info { background: #111; border: 1px solid #222; border-radius: 8px; padding: 16px; max-width: 640px; width: 100%; }
+    .info h3 { color: #7ec8e3; margin-bottom: 8px; font-size: 0.9rem; }
+    .info pre { color: #aaa; font-size: 0.78rem; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+
+  <h1>p<span>Ivot</span>X — Platformer</h1>
+  <p>
+    A complete platformer demo using <strong>Tilemap</strong>, <strong>Camera</strong>,
+    <strong>TiledBackground</strong> (parallax), <strong>SpriteAnimator</strong>,
+    and <strong>AABB collision</strong>. Collect all coins to win!
+  </p>
+
+  <canvas id="game" width="620" height="400"></canvas>
+
+  <div class="info">
+    <h3>Features demonstrated</h3>
+    <pre>• AssetLoader.loadAssets()        — batch preloading
+• Tilemap + solidTiles            — grid-based level with collision queries
+• getSolidTilesInRegion()         — broad-phase tile collision
+• aabbOverlapDepth() + createAABB — per-tile collision resolution
+• Camera.follow() + clamp()      — smooth scrolling camera
+• TiledBackground                 — parallax sky + hills layers
+• SpriteAnimator                  — idle / run / jump clips
+• Sprite (coin-sheet)             — animated collectibles
+• GameImage                       — static images</pre>
+  </div>
+
+<script>
+// ─── Unpack ────────────────────────────────────────────────────────────────
+var Canvas            = PivotX.Canvas;
+var Point             = PivotX.Point;
+var Rectangle         = PivotX.Rectangle;
+var Circle            = PivotX.Circle;
+var Label             = PivotX.Label;
+var GameImage         = PivotX.GameImage;
+var Sprite            = PivotX.Sprite;
+var SpriteAnimator    = PivotX.SpriteAnimator;
+var AssetLoader       = PivotX.AssetLoader;
+var Camera            = PivotX.Camera;
+var TiledBackground   = PivotX.TiledBackground;
+var Tilemap           = PivotX.Tilemap;
+var createAABB        = PivotX.createAABB;
+var aabbOverlap       = PivotX.aabbOverlap;
+var aabbOverlapDepth  = PivotX.aabbOverlapDepth;
+
+// ─── Boot ──────────────────────────────────────────────────────────────────
+(async function () {
+
+  // 1. Load assets
+  var assets = await AssetLoader.loadAssets({
+    hero:    'assets/hero-sheet.png',
+    tileset: 'assets/tileset.png',
+    coin:    'assets/coin-sheet.png',
+    sky:     'assets/sky-tile.png',
+    hills:   'assets/hills-tile.png',
+  });
+
+  // 2. Canvas + Camera
+  var canvas = new Canvas('game');
+  var W = canvas.getWidth();
+  var H = canvas.getHeight();
+  var camera = new Camera(W, H);
+
+  // 3. Parallax backgrounds
+  var sky = new TiledBackground(assets.sky, W, H);
+  sky.parallaxFactor = 0.15;
+
+  var hills = new TiledBackground(assets.hills, W, H);
+  hills.parallaxFactor = 0.4;
+
+  // 4. Tilemap
+  // tile indices: 0=grass-L, 1=grass-M, 2=grass-R, 3=grass-single,
+  //               4=dirt-L,  5=dirt-M,  6=dirt-R,  7=stone
+  var TILE_SIZE = 32;  // render each 16px tile at 32px
+
+  //prettier-ignore
+  var mapData = [
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 7, 7,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1, 0, 1, 2,-1,-1,-1,-1,-1,-1,-1,-1,-1, 0, 1, 2,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1, 7, 7, 7,-1,-1,-1,-1,-1,-1,-1,-1, 0, 1, 2,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1, 0, 1, 2,-1,-1,-1,-1,-1,-1,-1,-1, 0, 1, 1, 2,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [ 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
+    [ 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6],
+  ];
+
+  var tileSheet = Sprite.createSheet(assets.tileset, 16, 16, 8);
+  var tilemap   = new Tilemap(tileSheet, mapData, TILE_SIZE);
+  tilemap.solidTiles = new Set([0, 1, 2, 3, 4, 5, 6, 7]);
+
+  var WORLD_W = tilemap.widthInPixels;
+  var WORLD_H = tilemap.heightInPixels;
+
+  // 5. Coins (animated collectibles)
+  var coinSheet = Sprite.createSheet(assets.coin, 16, 16, 6);
+
+  var coins = [
+    { x:  5 * TILE_SIZE + 8, y:  8 * TILE_SIZE + 8 },
+    { x: 12 * TILE_SIZE + 8, y:  4 * TILE_SIZE + 8 },
+    { x:  8 * TILE_SIZE + 8, y:  6 * TILE_SIZE + 8 },
+    { x: 16 * TILE_SIZE + 8, y:  8 * TILE_SIZE + 8 },
+    { x: 19 * TILE_SIZE + 8, y:  6 * TILE_SIZE + 8 },
+    { x: 24 * TILE_SIZE + 8, y:  4 * TILE_SIZE + 8 },
+    { x: 27 * TILE_SIZE + 8, y:  2 * TILE_SIZE + 8 },
+  ];
+
+  var coinTimer = 0;
+  var coinFrame = 0;
+  var score     = 0;
+
+  // 6. Player
+  var heroSheet  = Sprite.createSheet(assets.hero, 16, 16, 10);
+  var heroSprite = new Sprite(Point(0, 0), heroSheet);
+  heroSprite.scale = 2;  // 32px on screen
+
+  var animator = new SpriteAnimator(heroSprite);
+  animator
+    .addClip('idle', { frames: [0, 1, 2, 3],  fps: 5,  loop: true })
+    .addClip('run',  { frames: [4, 5, 6, 7],  fps: 8,  loop: true })
+    .addClip('jump', { frames: [8, 9],         fps: 4,  loop: false });
+  animator.play('idle');
+
+  var player = {
+    x: 2 * TILE_SIZE,
+    y: 9 * TILE_SIZE,
+    vx: 0, vy: 0,
+    w: 24, h: 30,     // hitbox
+    speed: 200,
+    jumpForce: -420,
+    grounded: false,
+  };
+  var GRAVITY = 800;
+
+  // 7. Input
+  var keys = {};
+  document.addEventListener('keydown', function (e) {
+    keys[e.key] = true;
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].indexOf(e.key) >= 0) {
+      e.preventDefault();
+    }
+  });
+  document.addEventListener('keyup', function (e) { keys[e.key] = false; });
+
+  // 8. Game loop
+  canvas.startLoop(function (dt) {
+    canvas.clear();
+
+    // ── Input ──
+    player.vx = 0;
+    if (keys['ArrowRight'] || keys['d']) { player.vx =  player.speed; heroSprite.flipX = false; }
+    if (keys['ArrowLeft']  || keys['a']) { player.vx = -player.speed; heroSprite.flipX = true;  }
+    if ((keys['ArrowUp'] || keys['w'] || keys[' ']) && player.grounded) {
+      player.vy = player.jumpForce;
+      player.grounded = false;
+    }
+
+    // ── Physics ──
+    player.vy += GRAVITY * dt;
+    player.x  += player.vx * dt;
+    player.y  += player.vy * dt;
+
+    // ── Tilemap collision ──
+    player.grounded = false;
+
+    // Horizontal pass
+    var pBox = createAABB(player.x, player.y, player.w, player.h);
+    var nearH = tilemap.getSolidTilesInRegion(pBox);
+    for (var i = 0; i < nearH.length; i++) {
+      var depth = aabbOverlapDepth(createAABB(player.x, player.y, player.w, player.h), nearH[i]);
+      if (depth && depth.x < depth.y) {
+        if (player.vx > 0) player.x -= depth.x;
+        else                player.x += depth.x;
+        player.vx = 0;
+      }
+    }
+
+    // Vertical pass
+    pBox = createAABB(player.x, player.y, player.w, player.h);
+    var nearV = tilemap.getSolidTilesInRegion(pBox);
+    for (var i = 0; i < nearV.length; i++) {
+      var depth = aabbOverlapDepth(createAABB(player.x, player.y, player.w, player.h), nearV[i]);
+      if (depth && depth.y <= depth.x) {
+        if (player.vy > 0) {
+          player.y -= depth.y;
+          player.vy = 0;
+          player.grounded = true;
+        } else {
+          player.y += depth.y;
+          player.vy = 0;
+        }
+      }
+    }
+
+    // Clamp to world
+    if (player.x < 0) player.x = 0;
+    if (player.x + player.w > WORLD_W) player.x = WORLD_W - player.w;
+    if (player.y > WORLD_H + 100) {
+      // Fell off — respawn
+      player.x = 2 * TILE_SIZE;
+      player.y = 9 * TILE_SIZE;
+      player.vy = 0;
+    }
+
+    // ── Coin collection ──
+    var playerAABB = createAABB(player.x, player.y, player.w, player.h);
+    var remaining = [];
+    for (var i = 0; i < coins.length; i++) {
+      var coinAABB = createAABB(coins[i].x - 12, coins[i].y - 12, 24, 24);
+      if (aabbOverlap(playerAABB, coinAABB)) {
+        score += 100;
+      } else {
+        remaining.push(coins[i]);
+      }
+    }
+    coins = remaining;
+
+    // ── Coin animation timer ──
+    coinTimer += dt;
+    if (coinTimer > 0.12) {
+      coinTimer = 0;
+      coinFrame = (coinFrame + 1) % coinSheet.totalFrames;
+    }
+
+    // ── Animation ──
+    if (!player.grounded) {
+      animator.play('jump');
+    } else if (player.vx !== 0) {
+      animator.play('run');
+    } else {
+      animator.play('idle');
+    }
+    animator.update(dt);
+
+    heroSprite.position = Point(player.x - 4, player.y - 2);
+
+    // ── Parallax scrolling ──
+    var scrollDelta = player.vx * dt;
+    sky.scroll(scrollDelta);
+    hills.scroll(scrollDelta);
+
+    // ── Camera ──
+    camera.follow({ x: player.x + player.w / 2, y: player.y + player.h / 2 }, 0.08);
+    camera.clamp(WORLD_W, WORLD_H);
+
+    // ── Draw: backgrounds (screen space) ──
+    canvas.add(sky);
+    canvas.add(hills);
+
+    // ── Draw: world (camera space) ──
+    camera.begin(canvas.ctx);
+
+    canvas.add(tilemap);
+
+    // Coins
+    for (var i = 0; i < coins.length; i++) {
+      var coinSprite = new Sprite(Point(coins[i].x - 16, coins[i].y - 16), coinSheet);
+      coinSprite.frame = coinFrame;
+      coinSprite.scale = 2;
+      canvas.add(coinSprite);
+    }
+
+    // Player
+    canvas.add(heroSprite);
+
+    camera.end(canvas.ctx);
+
+    // ── HUD (screen space) ──
+    // Score background
+    var hudBg = new Rectangle(Point(0, 0), 160, 36);
+    hudBg.fillColor = 'rgba(0,0,0,0.5)';
+    canvas.add(hudBg);
+
+    var scoreLbl = new Label('Coins: ' + score, Point(14, 18), 'bold 16px Arial');
+    scoreLbl.fillColor = '#FFD700';
+    scoreLbl.textAlign = 'left';
+    canvas.add(scoreLbl);
+
+    if (coins.length === 0) {
+      var winBg = new Rectangle(Point(W / 2 - 140, H / 2 - 40), 280, 80);
+      winBg.fillColor = 'rgba(0,0,0,0.7)';
+      canvas.add(winBg);
+
+      var winLbl = new Label('All coins collected!', Point(W / 2, H / 2 - 10), 'bold 24px Arial');
+      winLbl.fillColor = '#FFD700';
+      canvas.add(winLbl);
+
+      var winScore = new Label('Score: ' + score, Point(W / 2, H / 2 + 20), '18px Arial');
+      winScore.fillColor = 'white';
+      canvas.add(winScore);
+    }
+
+    var hint = new Label('← → to move  |  Space / ↑ to jump', Point(W / 2, H - 12), '12px Arial');
+    hint.fillColor = 'rgba(255,255,255,0.3)';
+    canvas.add(hint);
+  });
+
+})();
+</script>
+</body>
+</html>

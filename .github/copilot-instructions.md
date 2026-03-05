@@ -60,6 +60,7 @@ src/react/               ← thin React wrapper, imports core classes internally
 - The `Canvas` class takes a **DOM element id** string, not a ref or element.
 - **`GameImage` accepts both `HTMLImageElement` and `string`**. String triggers auto-loading; `draw()` skips until loaded.
 - **`Sprite` uses `ctx.save()`/`ctx.restore()`** for flip/scale transforms. Other shapes avoid save/restore.
+- **`Sprite`, `Tilemap` default `pixelPerfect = true`**; `GameImage` defaults to `false`. When `true`, `ctx.imageSmoothingEnabled` is disabled so scaled-up pixel art stays crisp.
 - **`SpriteAnimator.update(dt)` must be called every frame** — it's not automatic.
 - **`Camera.begin(ctx)`/`end(ctx)` wrap world drawing.** HUD is drawn after `end()`.
 - **`Platform.bounds`** returns an `AABB` compatible with `aabbOverlap()`.
