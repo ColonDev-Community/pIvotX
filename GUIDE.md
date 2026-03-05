@@ -20,6 +20,15 @@ From your first shape to a full animated game, step by step.
 12. [Example — Keyboard-Controlled Player](#12-example--keyboard-controlled-player)
 13. [Example — Complete Mini-Game (Catch the Dots)](#13-example--complete-mini-game-catch-the-dots)
 14. [Common Mistakes](#14-common-mistakes)
+15. [Loading Images with AssetLoader](#15-loading-images-with-assetloader)
+16. [Drawing Images with GameImage](#16-drawing-images-with-gameimage)
+17. [Sprites & SpriteSheets](#17-sprites--spritesheets)
+18. [Sprite Animation with SpriteAnimator](#18-sprite-animation-with-spriteanimator)
+19. [Parallax Scrolling Backgrounds](#19-parallax-scrolling-backgrounds)
+20. [Camera — Following the Player](#20-camera--following-the-player)
+21. [Platforms & AABB Collision](#21-platforms--aabb-collision)
+22. [Tilemaps — Grid-Based Levels](#22-tilemaps--grid-based-levels)
+23. [Example — Putting It All Together (Platformer)](#23-example--putting-it-all-together-platformer)
 
 ---
 
@@ -740,3 +749,870 @@ canvas.startLoop(function (dt) {
   canvas.add(player);
 });
 ```
+
+---
+
+## 15. Loading Images with AssetLoader
+
+Before using images, sprites, or tile sheets, you need to preload them. `AssetLoader` provides two static methods for this.
+
+### Loading a single image
+
+```ts
+import { AssetLoader } from '@colon-dev/pivotx';
+
+const heroImg = await AssetLoader.loadImage('/sprites/hero.png');
+// heroImg is now a fully loaded HTMLImageElement, ready to use
+```
+
+### Batch-loading multiple images
+
+For games with many assets, use `loadAssets()` to load everything in parallel:
+
+```ts
+const assets = await AssetLoader.loadAssets({
+  hero:       '/sprites/hero.png',
+  enemy:      '/sprites/enemy.png',
+  tileset:    '/tiles/ground.png',
+  background: '/bg/sky.png',
+});
+
+// Access by name — all are HTMLImageElement
+console.log(assets.hero.naturalWidth);    // e.g. 128
+console.log(assets.tileset.naturalWidth); // e.g. 256
+```
+
+### Error handling
+
+`loadImage()` rejects with an `Error` if the URL is invalid or the server is unreachable:
+
+```ts
+try {
+  const img = await AssetLoader.loadImage('/missing.png');
+} catch (err) {
+  console.error(err.message);
+  // "pIvotX: Failed to load image "/missing.png""
+}
+```
+
+### Typical setup pattern
+
+```ts
+async function main() {
+  // 1. Preload all assets
+  const assets = await AssetLoader.loadAssets({
+    hero:    '/sprites/hero.png',
+    tileset: '/tiles/ground.png',
+    sky:     '/bg/sky.png',
+  });
+
+  // 2. Create canvas
+  const canvas = new Canvas('game');
+
+  // 3. Build sprites, tilemaps, backgrounds from loaded assets
+  const heroSheet = Sprite.createSheet(assets.hero, 32, 32);
+  const heroSprite = new Sprite(Point(100, 200), heroSheet);
+
+  // 4. Start the game loop
+  canvas.startLoop((dt) => {
+    canvas.clear();
+    canvas.add(heroSprite);
+  });
+}
+
+main();
+```
+
+---
+
+## 16. Drawing Images with GameImage
+
+`GameImage` draws a static image onto the canvas. It accepts either a pre-loaded `HTMLImageElement` or a URL string.
+
+### Using a pre-loaded image (recommended)
+
+```ts
+import { GameImage, AssetLoader, Point } from '@colon-dev/pivotx';
+
+const img  = await AssetLoader.loadImage('/background.png');
+const bg   = new GameImage(Point(0, 0), img);
+bg.width   = 600;  // stretch to canvas width
+bg.height  = 400;
+canvas.add(bg);
+```
+
+### Auto-loading from a URL
+
+When you pass a string, the image loads in the background. `draw()` silently skips until it's ready:
+
+```ts
+const bg = new GameImage(Point(0, 0), '/background.png');
+
+canvas.startLoop((dt) => {
+  canvas.clear();
+  canvas.add(bg);  // nothing shows until loaded, then appears automatically
+});
+```
+
+### Image properties
+
+```ts
+const hero = new GameImage(Point(100, 50), heroImg);
+
+hero.width   = 64;      // display width (null = natural)
+hero.height  = 64;      // display height (null = natural)
+hero.opacity = 0.8;     // semi-transparent
+hero.rotation = Math.PI / 4;  // rotate 45 degrees
+```
+
+### Checking load state and swapping images
+
+```ts
+if (hero.loaded) {
+  console.log('Image is ready!');
+}
+
+// Change image at runtime
+hero.setSrc('/sprites/hero-powered-up.png');
+// hero.loaded becomes false until new image finishes loading
+```
+
+### Example — image gallery with opacity
+
+```ts
+const canvas = new Canvas('game');
+
+const images = await AssetLoader.loadAssets({
+  landscape: '/photos/landscape.png',
+  portrait:  '/photos/portrait.png',
+});
+
+const bg = new GameImage(Point(0, 0), images.landscape);
+bg.width  = 600;
+bg.height = 400;
+
+const overlay = new GameImage(Point(150, 50), images.portrait);
+overlay.width   = 300;
+overlay.height  = 300;
+overlay.opacity = 0.7;
+
+canvas.add(bg);
+canvas.add(overlay);
+```
+
+---
+
+## 17. Sprites & SpriteSheets
+
+A **spritesheet** is a single image containing multiple frames arranged in a grid. `Sprite` draws one frame at a time, making it the building block for character animation.
+
+### Creating a SpriteSheet
+
+```
+Your spritesheet image layout:
+┌───┬───┬───┬───┐
+│ 0 │ 1 │ 2 │ 3 │   row 0
+├───┼───┼───┼───┤
+│ 4 │ 5 │ 6 │ 7 │   row 1
+└───┴───┴───┴───┘
+Frames numbered left-to-right, top-to-bottom.
+```
+
+```ts
+import { Sprite, AssetLoader, Point } from '@colon-dev/pivotx';
+
+const img   = await AssetLoader.loadImage('/hero-sheet.png');
+const sheet = Sprite.createSheet(img, 32, 32);  // each frame is 32×32 pixels
+
+console.log(sheet.columns);     // auto-calculated from image width
+console.log(sheet.totalFrames); // auto-calculated from image dimensions
+```
+
+If your sheet has unused cells at the end, specify the exact count:
+
+```ts
+const sheet = Sprite.createSheet(img, 64, 64, 12); // only first 12 frames
+```
+
+### Drawing a sprite
+
+```ts
+const hero   = new Sprite(Point(100, 200), sheet);
+hero.frame   = 0;     // first frame
+hero.scale   = 2;     // draw at 2× size
+canvas.add(hero);
+```
+
+### Flipping and scaling
+
+```ts
+// Face left (mirror horizontally)
+hero.flipX = true;
+
+// Face right again
+hero.flipX = false;
+
+// Flip upside down
+hero.flipY = true;
+
+// Half-transparent ghost effect
+hero.opacity = 0.5;
+```
+
+### Computed dimensions
+
+```ts
+// If frame is 32×32 and scale is 2:
+console.log(hero.drawWidth);   // 64
+console.log(hero.drawHeight);  // 64
+```
+
+### Example — cycling through frames manually
+
+```ts
+const canvas = new Canvas('game');
+const img    = await AssetLoader.loadImage('/coins.png');
+const sheet  = Sprite.createSheet(img, 16, 16);
+const coin   = new Sprite(Point(200, 150), sheet);
+coin.scale   = 3;
+
+let timer = 0;
+
+canvas.startLoop((dt) => {
+  canvas.clear();
+
+  timer += dt;
+  if (timer > 0.15) {  // change frame every 150ms
+    timer = 0;
+    coin.frame = (coin.frame + 1) % sheet.totalFrames;
+  }
+
+  canvas.add(coin);
+});
+```
+
+---
+
+## 18. Sprite Animation with SpriteAnimator
+
+Manually cycling frames works, but `SpriteAnimator` makes it much easier. Register named animation **clips** (e.g. "idle", "run", "jump"), then call `play()` to switch and `update(dt)` every frame.
+
+### Basic setup
+
+```ts
+import { Sprite, SpriteAnimator, AssetLoader, Point } from '@colon-dev/pivotx';
+
+const img    = await AssetLoader.loadImage('/hero-sheet.png');
+const sheet  = Sprite.createSheet(img, 32, 32);
+const hero   = new Sprite(Point(100, 200), sheet);
+hero.scale   = 2;
+
+const animator = new SpriteAnimator(hero);
+
+// Register clips — addClip is chainable
+animator
+  .addClip('idle', { frames: [0, 1, 2, 3],    fps: 6,  loop: true  })
+  .addClip('run',  { frames: [4, 5, 6, 7, 8], fps: 10, loop: true  })
+  .addClip('jump', { frames: [9, 10],          fps: 4,  loop: false });
+
+animator.play('idle');
+```
+
+### Using in the game loop
+
+```ts
+const canvas = new Canvas('game');
+
+canvas.startLoop((dt) => {
+  canvas.clear();
+
+  animator.update(dt);   // advance the animation timer
+  canvas.add(hero);      // draw the current frame
+});
+```
+
+### Switching animations based on input
+
+```ts
+var keys = {};
+document.addEventListener('keydown', (e) => { keys[e.key] = true;  });
+document.addEventListener('keyup',   (e) => { keys[e.key] = false; });
+
+canvas.startLoop((dt) => {
+  canvas.clear();
+
+  // Switch clip based on input
+  if (keys['ArrowRight']) {
+    hero.flipX = false;
+    animator.play('run');  // only resets if not already playing 'run'
+  } else if (keys['ArrowLeft']) {
+    hero.flipX = true;
+    animator.play('run');
+  } else {
+    animator.play('idle');
+  }
+
+  animator.update(dt);
+  canvas.add(hero);
+});
+```
+
+### Non-looping animations (attack, death, etc.)
+
+```ts
+animator.addClip('attack', { frames: [11, 12, 13, 14], fps: 12, loop: false });
+
+// When player presses attack:
+animator.play('attack');
+
+// In the game loop, check when it finishes:
+if (animator.isFinished) {
+  animator.play('idle');  // return to idle after attack completes
+}
+```
+
+### Checking animator state
+
+```ts
+animator.currentClip;  // "idle", "run", etc.
+animator.isPlaying;    // true if actively playing
+animator.isFinished;   // true if non-looping clip reached its last frame
+animator.currentIndex; // current index within the clip's frames array
+```
+
+---
+
+## 19. Parallax Scrolling Backgrounds
+
+`TiledBackground` draws a repeating image that tiles seamlessly and supports parallax scrolling. Stack multiple layers for depth.
+
+### Single scrolling background
+
+```ts
+import { TiledBackground, AssetLoader } from '@colon-dev/pivotx';
+
+const skyImg = await AssetLoader.loadImage('/bg/sky.png');
+const sky    = new TiledBackground(skyImg, 600, 400);  // canvas size
+
+canvas.startLoop((dt) => {
+  canvas.clear();
+  sky.scroll(50 * dt);   // scroll 50 pixels per second
+  canvas.add(sky);
+});
+```
+
+### Multi-layer parallax
+
+Create layers with different `parallaxFactor` values. Lower values scroll slower (further away):
+
+```ts
+const assets = await AssetLoader.loadAssets({
+  sky:    '/bg/sky.png',      // distant sky
+  hills:  '/bg/hills.png',    // mid-ground hills
+  trees:  '/bg/trees.png',    // foreground trees
+});
+
+const sky   = new TiledBackground(assets.sky,   600, 400);
+sky.parallaxFactor = 0.2;   // very slow — far away
+
+const hills = new TiledBackground(assets.hills, 600, 400);
+hills.parallaxFactor = 0.5; // medium speed
+
+const trees = new TiledBackground(assets.trees, 600, 400);
+trees.parallaxFactor = 1.0; // full speed — foreground
+
+canvas.startLoop((dt) => {
+  canvas.clear();
+
+  const scrollSpeed = 80 * dt;
+  sky.scroll(scrollSpeed);
+  hills.scroll(scrollSpeed);
+  trees.scroll(scrollSpeed);
+
+  // Draw back-to-front
+  canvas.add(sky);
+  canvas.add(hills);
+  canvas.add(trees);
+
+  // Draw player and other objects on top
+  canvas.add(playerSprite);
+});
+```
+
+### Adjusting opacity
+
+```ts
+sky.opacity = 0.8;  // slightly transparent
+```
+
+### Vertical scrolling
+
+```ts
+sky.scroll(0, 30 * dt);  // scroll vertically instead of horizontally
+```
+
+---
+
+## 20. Camera — Following the Player
+
+The `Camera` class transforms the canvas context so the world scrolls while the player stays centred on screen. Anything drawn between `begin()` and `end()` moves with the camera; anything drawn after `end()` (like the HUD) stays fixed.
+
+### Basic camera follow
+
+```ts
+import { Camera } from '@colon-dev/pivotx';
+
+const camera = new Camera(600, 400);  // matches canvas size
+
+canvas.startLoop((dt) => {
+  canvas.clear();
+
+  // Smoothly follow the player (lerp 0.08 = gentle smoothing)
+  camera.follow(player.position, 0.08);
+
+  camera.begin(canvas.ctx);
+
+  // ── World space ──
+  // Everything here scrolls with the camera
+  canvas.add(tilemap);
+  canvas.add(playerSprite);
+  canvas.add(enemySprite);
+
+  camera.end(canvas.ctx);
+
+  // ── Screen space ──
+  // Everything here stays fixed on screen
+  canvas.add(scoreLabel);
+  canvas.add(healthBar);
+});
+```
+
+### Clamping to world boundaries
+
+Prevent the camera from scrolling past the edges of your world:
+
+```ts
+camera.follow(player.position, 0.08);
+camera.clamp(worldWidth, worldHeight);  // call AFTER follow
+camera.begin(canvas.ctx);
+```
+
+### Zoom
+
+```ts
+camera.zoom = 2;    // 2× zoom in
+camera.zoom = 0.5;  // zoom out to see more of the world
+```
+
+### Coordinate conversion
+
+Convert between world and screen coordinates for mouse interaction:
+
+```ts
+// Mouse click → world position
+canvasElement.addEventListener('click', (e) => {
+  const rect = canvasElement.getBoundingClientRect();
+  const screenPos = Point(e.clientX - rect.left, e.clientY - rect.top);
+  const worldPos  = camera.screenToWorld(screenPos);
+  console.log('Clicked at world position:', worldPos.x, worldPos.y);
+});
+
+// World position → screen position (for UI indicators)
+const screenPos = camera.worldToScreen(enemy.position);
+```
+
+### Instant snap (no smoothing)
+
+```ts
+camera.follow(player.position);      // lerp defaults to 1 = instant
+camera.follow(player.position, 1);   // same — instant snap
+```
+
+---
+
+## 21. Platforms & AABB Collision
+
+`Platform` is a rectangle shape with a built-in AABB `bounds` getter, designed for platformer games. Use the collision functions (`aabbOverlap`, `aabbOverlapDepth`, `createAABB`) for physics.
+
+### Creating platforms
+
+```ts
+import { Platform, Point, aabbOverlap, aabbOverlapDepth, createAABB } from '@colon-dev/pivotx';
+
+// Solid ground
+const ground = new Platform(Point(0, 350), 600, 50);
+ground.fillColor = '#4a7c59';
+
+// Floating ledge (jump-through)
+const ledge = new Platform(Point(200, 250), 120, 16);
+ledge.oneWay    = true;
+ledge.fillColor = '#8b5e3c';
+```
+
+### Creating player AABB
+
+```ts
+const playerBox = createAABB(player.x, player.y, player.width, player.height);
+```
+
+### Simple overlap check
+
+```ts
+if (aabbOverlap(playerBox, ground.bounds)) {
+  console.log('Player is touching the ground!');
+}
+```
+
+### Collision resolution with overlap depth
+
+`aabbOverlapDepth` returns how deeply two boxes overlap, so you can push the player out:
+
+```ts
+const platforms = [ground, ledge];
+
+for (const plat of platforms) {
+  const depth = aabbOverlapDepth(playerBox, plat.bounds);
+  if (!depth) continue;   // no overlap
+
+  if (depth.y < depth.x) {
+    // Vertical collision (landing or head bump)
+    if (player.vy > 0) {
+      // Landing — push player up
+      player.y -= depth.y;
+      player.vy = 0;
+      player.grounded = true;
+    } else if (!plat.oneWay) {
+      // Head bump — push player down (skip for oneWay platforms)
+      player.y += depth.y;
+      player.vy = 0;
+    }
+  } else if (!plat.oneWay) {
+    // Horizontal collision (wall) — skip for oneWay platforms
+    if (player.vx > 0) {
+      player.x -= depth.x;
+    } else {
+      player.x += depth.x;
+    }
+    player.vx = 0;
+  }
+}
+```
+
+### One-way platforms
+
+When `oneWay` is `true`, the platform only collides when the player is falling down onto it from above. Your collision code should check this flag:
+
+```ts
+if (plat.oneWay && player.vy <= 0) {
+  continue; // skip — player is moving upward or stationary
+}
+```
+
+---
+
+## 22. Tilemaps — Grid-Based Levels
+
+`Tilemap` renders a 2D grid of tiles from a `SpriteSheet` and provides collision queries. Perfect for building levels.
+
+### Building a tilemap
+
+```ts
+import { Tilemap, Sprite, AssetLoader, Point } from '@colon-dev/pivotx';
+
+const tileImg = await AssetLoader.loadImage('/tiles/ground.png');
+const sheet   = Sprite.createSheet(tileImg, 16, 16);
+
+// Map data: each number is a frame index from the spritesheet.
+// -1 means empty (air).
+const mapData = [
+  [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+  [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+  [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+  [-1, -1, -1,  0,  1,  1,  2, -1, -1, -1],
+  [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+  [ 0,  1,  1,  1,  1,  1,  1,  1,  1,  2],
+  [ 3,  4,  4,  4,  4,  4,  4,  4,  4,  5],
+];
+
+const tilemap = new Tilemap(sheet, mapData, 32); // 32px rendered tile size
+```
+
+### Defining solid tiles
+
+Tell the tilemap which frame indices are solid for collision:
+
+```ts
+tilemap.solidTiles = new Set([0, 1, 2, 3, 4, 5]);
+```
+
+### Point-based collision check
+
+Check if a specific world coordinate is on a solid tile:
+
+```ts
+// Is the point below the player's feet solid?
+if (tilemap.isSolidAt(player.x + 16, player.y + 32)) {
+  player.grounded = true;
+  player.vy = 0;
+}
+```
+
+### Region-based collision (recommended for physics)
+
+Get all solid tile AABBs near the player for precise resolution:
+
+```ts
+const playerAABB = createAABB(player.x, player.y, 32, 32);
+const nearbyTiles = tilemap.getSolidTilesInRegion(playerAABB);
+
+for (const tileBox of nearbyTiles) {
+  const depth = aabbOverlapDepth(playerAABB, tileBox);
+  if (depth) {
+    if (depth.y < depth.x) {
+      if (player.vy > 0) {
+        player.y -= depth.y;
+        player.vy = 0;
+      } else {
+        player.y += depth.y;
+        player.vy = 0;
+      }
+    } else {
+      if (player.vx > 0) player.x -= depth.x;
+      else                player.x += depth.x;
+      player.vx = 0;
+    }
+    // Rebuild playerAABB after each resolution
+    playerAABB.left   = player.x;
+    playerAABB.right  = player.x + 32;
+    playerAABB.top    = player.y;
+    playerAABB.bottom = player.y + 32;
+  }
+}
+```
+
+### Modifying tiles at runtime
+
+Use `setTile()` for breakable blocks, collectibles, or dynamic terrain:
+
+```ts
+// Remove a block when the player hits it from below
+tilemap.setTile(col, row, -1);  // -1 = empty
+
+// Replace with a different tile
+tilemap.setTile(col, row, 6);   // frame index 6
+```
+
+### Tilemap dimensions
+
+```ts
+tilemap.rows;           // number of rows
+tilemap.cols;           // number of columns
+tilemap.tileSize;       // rendered tile size (32)
+tilemap.widthInPixels;  // cols × tileSize
+tilemap.heightInPixels; // rows × tileSize
+```
+
+### Using with Camera
+
+```ts
+const camera = new Camera(600, 400);
+
+canvas.startLoop((dt) => {
+  canvas.clear();
+
+  camera.follow(player.position, 0.08);
+  camera.clamp(tilemap.widthInPixels, tilemap.heightInPixels);
+  camera.begin(canvas.ctx);
+
+  canvas.add(tilemap);
+  canvas.add(playerSprite);
+
+  camera.end(canvas.ctx);
+  canvas.add(hudLabel);
+});
+```
+
+---
+
+## 23. Example — Putting It All Together (Platformer)
+
+This example combines all the new features into a simple side-scrolling platformer: asset loading, sprites, animation, tilemap collision, camera, and parallax backgrounds.
+
+```ts
+import {
+  Canvas, Point, Label,
+  AssetLoader, Sprite, SpriteAnimator,
+  TiledBackground, Tilemap, Camera,
+  createAABB, aabbOverlapDepth,
+} from '@colon-dev/pivotx';
+
+async function main() {
+  // ── 1. Load assets ─────────────────────────────────────────────────────
+  const assets = await AssetLoader.loadAssets({
+    hero:    '/sprites/hero-32x32.png',
+    tileset: '/tiles/tileset-16x16.png',
+    sky:     '/bg/sky.png',
+    hills:   '/bg/hills.png',
+  });
+
+  // ── 2. Create canvas & camera ──────────────────────────────────────────
+  const canvas = new Canvas('game');
+  const W = canvas.getWidth();
+  const H = canvas.getHeight();
+  const camera = new Camera(W, H);
+
+  // ── 3. Parallax backgrounds ────────────────────────────────────────────
+  const sky  = new TiledBackground(assets.sky, W, H);
+  sky.parallaxFactor = 0.2;
+
+  const hills = new TiledBackground(assets.hills, W, H);
+  hills.parallaxFactor = 0.5;
+
+  // ── 4. Tilemap ─────────────────────────────────────────────────────────
+  const tileSheet = Sprite.createSheet(assets.tileset, 16, 16);
+
+  const mapData = [
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1, 0, 1, 2,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1, 0, 1, 2,-1,-1,-1,-1,-1, 0, 1, 1, 2,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [ 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
+    [ 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 5],
+  ];
+
+  const tilemap = new Tilemap(tileSheet, mapData, 32);
+  tilemap.solidTiles = new Set([0, 1, 2, 3, 4, 5]);
+
+  // ── 5. Player sprite + animation ───────────────────────────────────────
+  const heroSheet  = Sprite.createSheet(assets.hero, 32, 32);
+  const heroSprite = new Sprite(Point(64, 200), heroSheet);
+  heroSprite.scale = 2;
+
+  const animator = new SpriteAnimator(heroSprite);
+  animator
+    .addClip('idle', { frames: [0, 1, 2, 3],    fps: 6,  loop: true })
+    .addClip('run',  { frames: [4, 5, 6, 7, 8], fps: 10, loop: true })
+    .addClip('jump', { frames: [9, 10],          fps: 4,  loop: false });
+
+  animator.play('idle');
+
+  // ── 6. Player physics state ────────────────────────────────────────────
+  const player = {
+    x: 64, y: 200,
+    vx: 0, vy: 0,
+    width: 28, height: 56, // hitbox (smaller than visual sprite)
+    speed: 200,
+    jumpForce: -450,
+    grounded: false,
+  };
+  const GRAVITY = 800;
+
+  // ── 7. Input ───────────────────────────────────────────────────────────
+  const keys: Record<string, boolean> = {};
+  document.addEventListener('keydown', (e) => { keys[e.key] = true;  });
+  document.addEventListener('keyup',   (e) => { keys[e.key] = false; });
+
+  // ── 8. Game loop ───────────────────────────────────────────────────────
+  canvas.startLoop((dt) => {
+    canvas.clear();
+
+    // ── Input ──
+    player.vx = 0;
+    if (keys['ArrowRight'] || keys['d']) { player.vx =  player.speed; heroSprite.flipX = false; }
+    if (keys['ArrowLeft']  || keys['a']) { player.vx = -player.speed; heroSprite.flipX = true;  }
+    if ((keys['ArrowUp'] || keys['w'] || keys[' ']) && player.grounded) {
+      player.vy = player.jumpForce;
+      player.grounded = false;
+    }
+
+    // ── Gravity ──
+    player.vy += GRAVITY * dt;
+
+    // ── Move ──
+    player.x += player.vx * dt;
+    player.y += player.vy * dt;
+
+    // ── Tilemap collision ──
+    player.grounded = false;
+    const pBox = createAABB(player.x, player.y, player.width, player.height);
+    const nearby = tilemap.getSolidTilesInRegion(pBox);
+
+    for (const tileBox of nearby) {
+      const depth = aabbOverlapDepth(
+        createAABB(player.x, player.y, player.width, player.height),
+        tileBox,
+      );
+      if (!depth) continue;
+
+      if (depth.y < depth.x) {
+        if (player.vy > 0) {
+          player.y -= depth.y;
+          player.vy = 0;
+          player.grounded = true;
+        } else {
+          player.y += depth.y;
+          player.vy = 0;
+        }
+      } else {
+        if (player.vx > 0) player.x -= depth.x;
+        else                player.x += depth.x;
+        player.vx = 0;
+      }
+    }
+
+    // ── Animation ──
+    if (!player.grounded) {
+      animator.play('jump');
+    } else if (player.vx !== 0) {
+      animator.play('run');
+    } else {
+      animator.play('idle');
+    }
+    animator.update(dt);
+    heroSprite.position = Point(player.x - 2, player.y - 4); // offset visual
+
+    // ── Scroll parallax based on camera movement ──
+    const scrollDelta = player.vx * dt;
+    sky.scroll(scrollDelta);
+    hills.scroll(scrollDelta);
+
+    // ── Camera ──
+    camera.follow({ x: player.x, y: player.y }, 0.08);
+    camera.clamp(tilemap.widthInPixels, tilemap.heightInPixels);
+
+    // ── Draw backgrounds (screen space) ──
+    canvas.add(sky);
+    canvas.add(hills);
+
+    // ── Draw world (camera space) ──
+    camera.begin(canvas.ctx);
+    canvas.add(tilemap);
+    canvas.add(heroSprite);
+    camera.end(canvas.ctx);
+
+    // ── HUD (screen space) ──
+    const hud = new Label(
+      'Arrow keys / WASD to move, Up / Space to jump',
+      Point(W / 2, H - 16), '14px Arial',
+    );
+    hud.fillColor = 'rgba(255,255,255,0.5)';
+    canvas.add(hud);
+  });
+}
+
+main();
+```
+
+**How it works:**
+
+1. **Asset loading** — all images load before the game starts, ensuring sprites are ready immediately.
+2. **Parallax backgrounds** — sky scrolls slowly (0.2×), hills at half speed (0.5×), creating depth.
+3. **Tilemap** — the level is defined as a 2D array. Solid tiles block the player.
+4. **Sprite animation** — the animator switches between idle/run/jump clips based on state.
+5. **Camera** — follows the player smoothly and clamps to the world boundaries.
+6. **Collision** — `getSolidTilesInRegion` queries nearby solid tiles, `aabbOverlapDepth` resolves overlaps by pushing the player out along the smallest axis.

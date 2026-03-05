@@ -273,6 +273,388 @@ const l = new Label("text", Point(x, y), "20px Arial");
 
 ---
 
+### `AssetLoader`
+
+Static utility for preloading image assets before the game loop starts.
+
+```ts
+import { AssetLoader } from '@colon-dev/pivotx';
+```
+
+| Method | Returns | Description |
+|---|---|---|
+| `AssetLoader.loadImage(src)` | `Promise<HTMLImageElement>` | Load a single image from a URL |
+| `AssetLoader.loadAssets(manifest)` | `Promise<Record<K, HTMLImageElement>>` | Load multiple images in parallel |
+
+```ts
+// Single image
+const heroImg = await AssetLoader.loadImage('/hero.png');
+
+// Batch — keys become properties on the result
+const assets = await AssetLoader.loadAssets({
+  hero:       '/sprites/hero.png',
+  background: '/bg/sky.png',
+  tileset:    '/tiles/ground.png',
+});
+// assets.hero, assets.background, assets.tileset — all HTMLImageElement
+```
+
+---
+
+### `GameImage`
+
+Draws a static image on the canvas. Accepts a pre-loaded `HTMLImageElement` **or** a URL string (auto-loads in background; `draw()` skips until ready).
+
+```ts
+import { GameImage, AssetLoader, Point } from '@colon-dev/pivotx';
+
+// Recommended: pre-load first
+const img  = await AssetLoader.loadImage('/hero.png');
+const hero = new GameImage(Point(100, 50), img);
+hero.width  = 64;
+hero.height = 64;
+canvas.add(hero);
+
+// Auto-load shorthand (draws once loaded)
+const bg = new GameImage(Point(0, 0), '/background.png');
+canvas.add(bg);
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `position` | `IPoint` | — | Top-left draw position |
+| `width` | `number \| null` | `null` | Display width (`null` = natural) |
+| `height` | `number \| null` | `null` | Display height (`null` = natural) |
+| `opacity` | `number` | `1` | 0 (transparent) to 1 (opaque) |
+| `rotation` | `number` | `0` | Rotation in radians (around centre) |
+
+| Method / Getter | Returns | Description |
+|---|---|---|
+| `loaded` | `boolean` | `true` once the image is ready to draw |
+| `imageElement` | `HTMLImageElement` | The underlying image element |
+| `setSrc(url)` | `void` | Change the source at runtime |
+
+---
+
+### `Sprite` & `SpriteSheet`
+
+Renders a single frame from a grid-based spritesheet.
+
+```ts
+import { Sprite, AssetLoader, Point } from '@colon-dev/pivotx';
+import type { SpriteSheet } from '@colon-dev/pivotx';
+
+const img   = await AssetLoader.loadImage('/hero-sheet.png');
+const sheet = Sprite.createSheet(img, 32, 32);   // 32×32 frame size
+const hero  = new Sprite(Point(100, 200), sheet);
+hero.frame  = 0;    // which frame to show
+hero.scale  = 2;    // 2× size
+hero.flipX  = true; // mirror horizontally
+canvas.add(hero);
+```
+
+#### `SpriteSheet` interface
+
+| Property | Type | Description |
+|---|---|---|
+| `image` | `HTMLImageElement` | The spritesheet image |
+| `frameWidth` | `number` | Width of one frame |
+| `frameHeight` | `number` | Height of one frame |
+| `columns` | `number` | Frames per row |
+| `totalFrames` | `number` | Total usable frames |
+
+#### `Sprite` class
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `position` | `IPoint` | — | Top-left draw position |
+| `frame` | `number` | `0` | Current frame index (wraps) |
+| `scale` | `number` | `1` | Scale multiplier |
+| `flipX` | `boolean` | `false` | Mirror horizontally |
+| `flipY` | `boolean` | `false` | Mirror vertically |
+| `opacity` | `number` | `1` | 0–1 opacity |
+
+| Method / Getter | Returns | Description |
+|---|---|---|
+| `Sprite.createSheet(img, fw, fh, total?)` | `SpriteSheet` | Build a sheet from a loaded image |
+| `drawWidth` | `number` | `frameWidth × scale` |
+| `drawHeight` | `number` | `frameHeight × scale` |
+| `sheet` | `SpriteSheet` | The sprite's SpriteSheet |
+
+---
+
+### `SpriteAnimator` & `AnimationClip`
+
+Named animation clip controller for a `Sprite`. Register clips, play them, and call `update(dt)` every frame.
+
+```ts
+import { SpriteAnimator } from '@colon-dev/pivotx';
+import type { AnimationClip } from '@colon-dev/pivotx';
+
+const animator = new SpriteAnimator(heroSprite);
+animator
+  .addClip('idle', { frames: [0, 1, 2, 3],    fps: 6,  loop: true })
+  .addClip('run',  { frames: [4, 5, 6, 7, 8], fps: 10, loop: true })
+  .addClip('jump', { frames: [9, 10],          fps: 4,  loop: false });
+
+animator.play('idle');
+
+// In game loop:
+canvas.startLoop((dt) => {
+  canvas.clear();
+  animator.update(dt);     // advance the frame
+  canvas.add(heroSprite);  // draw current frame
+});
+```
+
+#### `AnimationClip` interface
+
+| Property | Type | Description |
+|---|---|---|
+| `frames` | `number[]` | Ordered frame indices from the SpriteSheet |
+| `fps` | `number` | Playback speed (frames per second) |
+| `loop` | `boolean` | Loop or stop on last frame |
+
+#### `SpriteAnimator` class
+
+| Method | Returns | Description |
+|---|---|---|
+| `addClip(name, clip)` | `this` | Register a clip (chainable) |
+| `removeClip(name)` | `this` | Remove a clip (chainable) |
+| `hasClip(name)` | `boolean` | Check if a clip exists |
+| `play(name)` | `void` | Switch to a clip (resets only if different) |
+| `stop()` | `void` | Pause playback on current frame |
+| `update(dt)` | `void` | Advance timer — call once per frame |
+
+| Getter | Type | Description |
+|---|---|---|
+| `currentClip` | `string` | Name of the active clip |
+| `isPlaying` | `boolean` | Currently playing |
+| `isFinished` | `boolean` | Non-looping clip reached last frame |
+| `currentIndex` | `number` | Index within the clip's frames array |
+
+---
+
+### `Camera`
+
+2D viewport that translates and scales the canvas context. Draw world objects between `begin()` and `end()`. Anything drawn after `end()` (HUD, score) stays fixed on screen.
+
+```ts
+import { Camera } from '@colon-dev/pivotx';
+
+const camera = new Camera(600, 400); // viewport size
+
+canvas.startLoop((dt) => {
+  canvas.clear();
+
+  camera.follow(player.position, 0.08); // smooth follow
+  camera.clamp(worldWidth, worldHeight); // don't scroll past edges
+  camera.begin(canvas.ctx);
+
+  // World objects — scroll with camera
+  canvas.add(tilemap);
+  canvas.add(playerSprite);
+
+  camera.end(canvas.ctx);
+
+  // HUD — fixed on screen
+  canvas.add(scoreLabel);
+});
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `position` | `IPoint` | `{x:0, y:0}` | Top-left of viewport in world coords |
+| `zoom` | `number` | `1` | Zoom level (2 = 2× zoom in) |
+| `viewportWidth` | `number` | — | Viewport width |
+| `viewportHeight` | `number` | — | Viewport height |
+
+| Method | Returns | Description |
+|---|---|---|
+| `follow(target, lerp?)` | `void` | Centre on target. `lerp` 0.05–0.15 = smooth, 1 = instant |
+| `clamp(worldW, worldH)` | `void` | Prevent scrolling past world edges |
+| `begin(ctx)` | `void` | Apply camera transform (call before world drawing) |
+| `end(ctx)` | `void` | Restore screen space (call after world drawing) |
+| `worldToScreen(p)` | `IPoint` | Convert world position to screen coordinates |
+| `screenToWorld(p)` | `IPoint` | Convert screen position to world coordinates |
+
+---
+
+### `TiledBackground`
+
+Draws a repeating, scrollable background image with parallax support. Stack multiple instances for multi-layer parallax.
+
+```ts
+import { TiledBackground, AssetLoader } from '@colon-dev/pivotx';
+
+const skyImg = await AssetLoader.loadImage('/bg/sky.png');
+const sky    = new TiledBackground(skyImg, 600, 400);
+sky.parallaxFactor = 0.3; // distant — scrolls slowly
+
+canvas.startLoop((dt) => {
+  canvas.clear();
+  sky.scroll(100 * dt);   // scroll speed (parallax applied automatically)
+  canvas.add(sky);
+});
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `scrollX` | `number` | `0` | Horizontal offset |
+| `scrollY` | `number` | `0` | Vertical offset |
+| `opacity` | `number` | `1` | 0–1 opacity |
+| `parallaxFactor` | `number` | `1` | 1 = full speed, 0.3 = slow (distant) |
+
+| Method | Returns | Description |
+|---|---|---|
+| `scroll(dx, dy?)` | `void` | Advance scroll offset (parallax applied) |
+| `setViewport(w, h)` | `void` | Update viewport size on resize |
+
+---
+
+### `Platform`
+
+A rectangular shape with AABB collision support and a `oneWay` flag for jump-through platforms.
+
+```ts
+import { Platform, Point, aabbOverlap } from '@colon-dev/pivotx';
+
+const ground = new Platform(Point(0, 350), 600, 50);
+ground.fillColor = '#4a7c59';
+canvas.add(ground);
+
+const ledge = new Platform(Point(200, 260), 120, 16);
+ledge.oneWay = true; // jump-through from below
+
+if (aabbOverlap(playerBounds, ground.bounds)) {
+  // collision!
+}
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `position` | `IPoint` | — | Top-left corner |
+| `width` | `number` | — | Width in pixels |
+| `height` | `number` | — | Height in pixels |
+| `fillColor` | `CSSColor \| null` | `'#555'` | Fill colour |
+| `strokeColor` | `CSSColor \| null` | `null` | Outline colour |
+| `lineWidth` | `number` | `0` | Outline thickness |
+| `oneWay` | `boolean` | `false` | Jump-through from below |
+
+| Getter | Type | Description |
+|---|---|---|
+| `bounds` | `AABB` | AABB for collision functions |
+
+---
+
+### `Tilemap`
+
+Grid-based tile map. Renders tiles from a `SpriteSheet` and provides collision queries.
+
+```ts
+import { Tilemap, Sprite, AssetLoader, Point } from '@colon-dev/pivotx';
+
+const tileImg  = await AssetLoader.loadImage('/tiles/ground.png');
+const sheet    = Sprite.createSheet(tileImg, 16, 16);
+
+const mapData = [
+  [-1, -1, -1, -1, -1],   // -1 = empty/air
+  [-1, -1, -1, -1, -1],
+  [ 0,  1,  1,  1,  2],   // frame indices from sheet
+  [ 3,  4,  4,  4,  5],
+];
+
+const tilemap = new Tilemap(sheet, mapData, 32); // 32px rendered tile size
+tilemap.solidTiles = new Set([0, 1, 2, 3, 4, 5]);
+
+// Collision check
+if (tilemap.isSolidAt(player.x, player.y + 32)) {
+  // standing on solid ground
+}
+
+// Region query for nearby solid tiles
+const nearby = tilemap.getSolidTilesInRegion(playerAABB);
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `solidTiles` | `Set<number>` | `new Set()` | Frame indices considered solid |
+
+| Method | Returns | Description |
+|---|---|---|
+| `getTileAt(worldX, worldY)` | `number` | Frame index at world position (-1 if empty/OOB) |
+| `isSolidAt(worldX, worldY)` | `boolean` | True if tile at position is in `solidTiles` |
+| `setTile(col, row, frame)` | `void` | Change a tile at runtime (breakable blocks, pickups) |
+| `getTileBounds(col, row)` | `AABB` | AABB for a specific tile cell |
+| `getSolidTilesInRegion(region)` | `AABB[]` | All solid tile AABBs overlapping a region |
+
+| Getter | Type | Description |
+|---|---|---|
+| `rows` | `number` | Number of rows |
+| `cols` | `number` | Number of columns |
+| `tileSize` | `number` | Rendered tile size |
+| `widthInPixels` | `number` | Total map width |
+| `heightInPixels` | `number` | Total map height |
+| `mapData` | `number[][]` | Underlying map data |
+
+---
+
+### Collision Functions
+
+AABB collision detection utilities. Works with `Platform.bounds`, `Tilemap.getTileBounds()`, or any `AABB` object.
+
+```ts
+import { aabbOverlap, aabbOverlapDepth, createAABB } from '@colon-dev/pivotx';
+import type { AABB } from '@colon-dev/pivotx';
+```
+
+#### `AABB` interface
+
+```ts
+interface AABB {
+  left:   number;
+  right:  number;
+  top:    number;
+  bottom: number;
+}
+```
+
+#### `createAABB(x, y, width, height)`
+
+Convenience helper to build an AABB from position + dimensions.
+
+```ts
+const playerBox = createAABB(player.x, player.y, 32, 32);
+```
+
+#### `aabbOverlap(a, b)`
+
+Returns `true` if two AABBs overlap.
+
+```ts
+if (aabbOverlap(playerBox, platform.bounds)) {
+  // collision!
+}
+```
+
+#### `aabbOverlapDepth(a, b)`
+
+Returns `{ x, y }` overlap depth (always positive), or `null` if no overlap. Use the smaller axis for minimum translation.
+
+```ts
+const depth = aabbOverlapDepth(playerBox, platform.bounds);
+if (depth) {
+  if (depth.y < depth.x) {
+    player.y -= depth.y; // resolve vertically
+    player.vy = 0;
+  } else {
+    player.x -= depth.x; // resolve horizontally
+  }
+}
+```
+
+---
+
 ### React Components
 
 #### `<PivotCanvas>`
@@ -289,6 +671,74 @@ The root component. All shape components must be inside it.
 
 All accept the same props as their class equivalents, using React naming:
 `fill` → `fillColor`, `stroke` → `strokeColor`, `center` → `centerPoint`, `start`/`end` → `startPoint`/`endPoint`.
+
+#### `<PivotImage>`
+
+Draws an image on the canvas.
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `src` | `string \| HTMLImageElement` | — | URL or pre-loaded image |
+| `position` | `IPoint` | — | Top-left draw position |
+| `width` | `number` | natural | Display width |
+| `height` | `number` | natural | Display height |
+| `opacity` | `number` | `1` | 0–1 opacity |
+| `rotation` | `number` | `0` | Rotation in radians |
+
+```tsx
+<PivotImage src="/hero.png" position={{ x: 100, y: 50 }} width={64} height={64} />
+```
+
+#### `<PivotSprite>`
+
+Draws a single sprite frame.
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `position` | `IPoint` | — | Top-left position |
+| `sheet` | `SpriteSheet` | — | SpriteSheet to draw from |
+| `frame` | `number` | — | Frame index |
+| `scale` | `number` | `1` | Scale multiplier |
+| `flipX` | `boolean` | `false` | Mirror horizontally |
+| `flipY` | `boolean` | `false` | Mirror vertically |
+| `opacity` | `number` | `1` | 0–1 opacity |
+
+```tsx
+<PivotSprite position={{ x: 100, y: 200 }} sheet={heroSheet} frame={currentFrame} scale={2} />
+```
+
+#### `<PivotPlatform>`
+
+Draws a rectangular platform.
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `position` | `IPoint` | — | Top-left corner |
+| `width` | `number` | — | Width |
+| `height` | `number` | — | Height |
+| `fill` | `CSSColor` | `'#555'` | Fill colour |
+| `stroke` | `CSSColor` | `null` | Stroke colour |
+| `lineWidth` | `number` | `0` | Stroke thickness |
+| `oneWay` | `boolean` | `false` | Jump-through |
+
+```tsx
+<PivotPlatform position={{ x: 0, y: 350 }} width={600} height={50} fill="#4a7c59" />
+```
+
+#### `<PivotTilemap>`
+
+Draws a grid-based tile map.
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `sheet` | `SpriteSheet` | — | Tile SpriteSheet |
+| `mapData` | `number[][]` | — | 2D map data (-1 = empty) |
+| `tileSize` | `number` | — | Rendered tile size |
+| `solidTiles` | `Set<number>` | `new Set()` | Solid tile indices |
+
+```tsx
+<PivotTilemap sheet={tileSheet} mapData={levelData} tileSize={32} />
+```
 
 #### `useGameLoop(callback)`
 
