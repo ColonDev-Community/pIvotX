@@ -108,9 +108,15 @@ export class Tilemap implements IDrawable {
    * @param frameIndex  New frame index, or -1 to clear the tile.
    */
   setTile(col: number, row: number, frameIndex: number): void {
-    if (row >= 0 && row < this.rows && col >= 0 && col < this.cols) {
-      this._mapData[row][col] = frameIndex;
+    if (!Number.isInteger(row) || !Number.isInteger(col)) {
+      console.warn('[Tilemap] setTile: row and col must be integers. Ignoring call.');
+      return;
     }
+    if (row < 0 || row >= this.rows || col < 0 || col >= this.cols) {
+      console.warn(`[Tilemap] setTile: position (col=${col}, row=${row}) is out of bounds. Ignoring call.`);
+      return;
+    }
+    this._mapData[row][col] = frameIndex;
   }
 
   /**
