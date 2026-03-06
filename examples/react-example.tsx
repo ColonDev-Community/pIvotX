@@ -1,22 +1,31 @@
 /**
  * React usage example — BouncingBallGame.tsx
  *
- * Shows three patterns:
+ * Shows five patterns:
  *  1. Static render — shape components drawn from props
  *  2. Animated render — useGameLoop + useRef for mutable state
  *  3. Custom hook — useBouncingBall for encapsulated game logic
+ *  4. Sprite animation — PivotSprite + PivotImage
+ *  5. Platformer scene — PivotPlatform + PivotTilemap
  */
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   PivotCanvas,
   PivotCircle,
   PivotRectangle,
   PivotLabel,
   PivotLine,
+  PivotImage,
+  PivotSprite,
+  PivotPlatform,
+  PivotTilemap,
   useGameLoop,
-} from 'pivotx/react';
-import { Point } from 'pivotx';
+} from '@colon-dev/pivotx/react';
+import {
+  Point, AssetLoader, Sprite, SpriteAnimator,
+} from '@colon-dev/pivotx';
+import type { SpriteSheet } from '@colon-dev/pivotx';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Pattern 1 — Static Scene (pure JSX, no animation)
@@ -174,7 +183,7 @@ export function PlayerGame() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// App — renders all three examples
+// App — renders all five examples
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -190,6 +199,155 @@ export default function App() {
 
       <h2>3. Keyboard Player</h2>
       <PlayerGame />
+
+      <h2>4. Sprite Animation (PivotSprite + PivotImage)</h2>
+      <SpriteDemo />
+
+      <h2>5. Platforms &amp; Tilemap</h2>
+      <PlatformTilemapDemo />
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pattern 4 — Sprite Animation (PivotSprite + PivotImage)
+//
+// Uses AssetLoader to preload a spritesheet, then animates
+// with SpriteAnimator via useGameLoop.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function SpriteDemo() {
+  const [sheet, setSheet] = useState<SpriteSheet | null>(null);
+  const frameRef = useRef(0);
+  const animRef  = useRef<SpriteAnimator | null>(null);
+  const [, setTick] = useState(0);
+
+  // Load spritesheet once
+  useEffect(() => {
+    AssetLoader.loadImage('/assets/hero-sheet.png').then((img) => {
+      const s = Sprite.createSheet(img, 16, 16, 10);
+      setSheet(s);
+
+      // Create a temporary Sprite just for the animator to drive frame numbers
+      const tempSprite = new Sprite(Point(0, 0), s);
+      const anim = new SpriteAnimator(tempSprite);
+      anim
+        .addClip('idle', { frames: [0, 1, 2, 3], fps: 5, loop: true })
+        .addClip('run',  { frames: [4, 5, 6, 7], fps: 8, loop: true });
+      anim.play('idle');
+      animRef.current = anim;
+    });
+  }, []);
+
+  useGameLoop((dt) => {
+    if (!animRef.current) return;
+    animRef.current.update(dt);
+    // Read the frame the animator set on its internal sprite
+    frameRef.current = animRef.current.currentIndex;
+    setTick(t => t + 1);
+  });
+
+  if (!sheet) {
+    return <p style={{ color: '#888' }}>Loading sprite assets…</p>;
+  }
+
+  // Determine frame from the animator's clip
+  const clip = animRef.current;
+  const activeFrames = clip?.currentClip === 'run' ? [4,5,6,7] : [0,1,2,3];
+  const frame = activeFrames[frameRef.current % activeFrames.length];
+
+  return (
+    <PivotCanvas width={W} height={200} background="#1a1a2e">
+      {/* Background image (auto-load from URL) */}
+      <PivotImage
+        src="/assets/sky-tile.png"
+        position={{ x: 0, y: 0 }}
+        width={W}
+        height={200}
+        opacity={0.6}
+      />
+
+      {/* Animated sprite — scaled up 4× */}
+      <PivotSprite
+        position={{ x: W / 2 - 32, y: 100 }}
+        sheet={sheet}
+        frame={frame}
+        scale={4}
+      />
+
+      <PivotLabel
+        text={`Clip: ${clip?.currentClip ?? '?'}  Frame: ${frame}`}
+        position={{ x: W / 2, y: 20 }}
+        font="14px monospace"
+        fill="rgba(255,255,255,0.6)"
+      />
+    </PivotCanvas>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pattern 5 — Platforms + Tilemap
+//
+// Shows PivotPlatform (including oneWay) and PivotTilemap components.
+// ─────────────────────────────────────────────────────────────────────────────
+
+function PlatformTilemapDemo() {
+  const [sheet, setSheet] = useState<SpriteSheet | null>(null);
+
+  useEffect(() => {
+    AssetLoader.loadImage('/assets/tileset.png').then((img) => {
+      setSheet(Sprite.createSheet(img, 16, 16, 8));
+    });
+  }, []);
+
+  if (!sheet) {
+    return <p style={{ color: '#888' }}>Loading tileset…</p>;
+  }
+
+  const mapData: number[][] = [
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1, 0, 1, 2,-1,-1,-1,-1,-1, 7, 7,-1,-1,-1,-1],
+    [-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
+    [ 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2],
+    [ 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6],
+  ];
+
+  return (
+    <PivotCanvas width={W} height={240} background="#1a1a2e">
+      {/* Tilemap */}
+      <PivotTilemap
+        sheet={sheet}
+        mapData={mapData}
+        tileSize={32}
+        solidTiles={new Set([0, 1, 2, 4, 5, 6, 7])}
+      />
+
+      {/* Standalone platforms */}
+      <PivotPlatform
+        position={{ x: 40, y: 100 }}
+        width={100}
+        height={12}
+        fill="#8b5e3c"
+        stroke="#6b4226"
+        lineWidth={1}
+      />
+
+      <PivotPlatform
+        position={{ x: 300, y: 80 }}
+        width={80}
+        height={10}
+        fill="#8b5e3c"
+        oneWay={true}
+      />
+
+      <PivotLabel
+        text="Tilemap + Platforms (brown ledges are oneWay)"
+        position={{ x: W / 2, y: 14 }}
+        font="12px Arial"
+        fill="rgba(255,255,255,0.5)"
+      />
+    </PivotCanvas>
   );
 }
