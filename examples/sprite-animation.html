@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>pIvotX — Sprite Animation Demo</title>
+  <script src="../dist/pivotx.umd.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d0d1a;
+      color: #fff;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+      gap: 20px;
+    }
+    h1 { font-size: 1.6rem; color: #e94560; }
+    h1 span { color: #fff; }
+    p { color: #888; font-size: 0.9rem; max-width: 640px; text-align: center; }
+    canvas { border-radius: 8px; display: block; }
+    .info { background: #111; border: 1px solid #222; border-radius: 8px; padding: 16px; max-width: 640px; width: 100%; }
+    .info h3 { color: #7ec8e3; margin-bottom: 8px; font-size: 0.9rem; }
+    .info pre { color: #aaa; font-size: 0.78rem; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+
+  <h1>p<span>Ivot</span>X — Sprite Animation</h1>
+  <p>
+    Demonstrates <strong>AssetLoader</strong>, <strong>Sprite</strong>,
+    <strong>SpriteAnimator</strong>, and <strong>GameImage</strong>.
+    Use <strong>← →</strong> arrow keys to run. Press <strong>Space</strong> to jump.
+  </p>
+
+  <canvas id="game" width="620" height="300"></canvas>
+
+  <div class="info">
+    <h3>What this demo shows</h3>
+    <pre>• AssetLoader.loadAssets() — batch-preloads all images before the loop starts
+• Sprite.createSheet()    — creates a SpriteSheet from a loaded image
+• SpriteAnimator          — manages idle / run / jump clips by name
+• GameImage               — draws a static background image
+• Sprite.flipX            — mirrors the character when facing left</pre>
+  </div>
+
+<script>
+// ─── Unpack from UMD global ────────────────────────────────────────────────
+var Canvas         = PivotX.Canvas;
+var Point          = PivotX.Point;
+var Rectangle      = PivotX.Rectangle;
+var Label          = PivotX.Label;
+var GameImage      = PivotX.GameImage;
+var Sprite         = PivotX.Sprite;
+var SpriteAnimator = PivotX.SpriteAnimator;
+var AssetLoader    = PivotX.AssetLoader;
+
+// ─── Boot ──────────────────────────────────────────────────────────────────
+(async function () {
+
+  // 1. Preload all images
+  var assets = await AssetLoader.loadAssets({
+    hero: 'assets/hero-sheet.png',
+    sky:  'assets/sky-tile.png',
+  });
+
+  // 2. Canvas
+  var canvas = new Canvas('game');
+  var W = canvas.getWidth();
+  var H = canvas.getHeight();
+
+  // 3. Background image
+  var bg = new GameImage(Point(0, 0), assets.sky);
+  bg.width  = W;
+  bg.height = H;
+
+  // 4. Sprite + animator
+  var heroSheet  = Sprite.createSheet(assets.hero, 16, 16, 10);
+  var heroSprite = new Sprite(Point(W / 2 - 32, H - 120), heroSheet);
+  heroSprite.scale = 4;   // 16px × 4 = 64px on screen
+
+  var animator = new SpriteAnimator(heroSprite);
+  animator
+    .addClip('idle', { frames: [0, 1, 2, 3],    fps: 5,  loop: true })
+    .addClip('run',  { frames: [4, 5, 6, 7],    fps: 8,  loop: true })
+    .addClip('jump', { frames: [8, 9],           fps: 4,  loop: false });
+
+  animator.play('idle');
+
+  // 5. Simple physics
+  var player = { x: W / 2 - 32, y: H - 120, vy: 0, grounded: true };
+  var GRAVITY    = 600;
+  var SPEED      = 180;
+  var JUMP_FORCE = -350;
+
+  // 6. Input
+  var keys = {};
+  document.addEventListener('keydown', function (e) {
+    keys[e.key] = true;
+    if (e.key === ' ') e.preventDefault();
+  });
+  document.addEventListener('keyup', function (e) { keys[e.key] = false; });
+
+  // 7. Ground line
+  var groundY = H - 56;
+
+  // 8. Game loop
+  canvas.startLoop(function (dt) {
+    canvas.clear();
+
+    // Background
+    canvas.add(bg);
+
+    // Ground
+    var ground = new Rectangle(Point(0, groundY), W, H - groundY);
+    ground.fillColor = '#3a5a40';
+    canvas.add(ground);
+    var groundLine = new Rectangle(Point(0, groundY), W, 4);
+    groundLine.fillColor = '#588157';
+    canvas.add(groundLine);
+
+    // Movement
+    var moving = false;
+    if (keys['ArrowLeft'] || keys['a']) {
+      player.x -= SPEED * dt;
+      heroSprite.flipX = true;
+      moving = true;
+    }
+    if (keys['ArrowRight'] || keys['d']) {
+      player.x += SPEED * dt;
+      heroSprite.flipX = false;
+      moving = true;
+    }
+
+    // Jump
+    if ((keys[' '] || keys['ArrowUp'] || keys['w']) && player.grounded) {
+      player.vy = JUMP_FORCE;
+      player.grounded = false;
+    }
+
+    // Gravity
+    player.vy += GRAVITY * dt;
+    player.y  += player.vy * dt;
+
+    // Land on ground
+    if (player.y >= groundY - heroSprite.drawHeight) {
+      player.y  = groundY - heroSprite.drawHeight;
+      player.vy = 0;
+      player.grounded = true;
+    }
+
+    // Clamp horizontally
+    player.x = Math.max(0, Math.min(W - heroSprite.drawWidth, player.x));
+
+    // Animation state
+    if (!player.grounded) {
+      animator.play('jump');
+    } else if (moving) {
+      animator.play('run');
+    } else {
+      animator.play('idle');
+    }
+
+    animator.update(dt);
+    heroSprite.position = Point(player.x, player.y);
+    canvas.add(heroSprite);
+
+    // HUD
+    var clipLabel = new Label(
+      'Clip: ' + animator.currentClip + '  |  Frame: ' + heroSprite.frame,
+      Point(W / 2, 20), '14px monospace'
+    );
+    clipLabel.fillColor = 'rgba(255,255,255,0.6)';
+    canvas.add(clipLabel);
+
+    var hint = new Label('← → to run  |  Space to jump', Point(W / 2, H - 12), '12px Arial');
+    hint.fillColor = 'rgba(255,255,255,0.3)';
+    canvas.add(hint);
+  });
+
+})();
+</script>
+</body>
+</html>
