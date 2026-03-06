@@ -19,3 +19,11 @@ export interface IShape extends IDrawable {
 }
 
 export type LoopCallback = (dt: number) => void;
+
+/** Axis-Aligned Bounding Box for collision detection. */
+export interface AABB {
+  left:   number;
+  right:  number;
+  top:    number;
+  bottom: number;
+}
