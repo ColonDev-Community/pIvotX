@@ -4,6 +4,8 @@
 
 pIvotX (`@colon-dev/pivotx`) is a lightweight 2D canvas game library shipped as a single npm package with two entry points:
 
+- **Website:** <https://pivotx.colondev.com/>
+- **Sample Games & Tutorials:** <https://pivotx.colondev.com/tutorials>
 - **Core** (`pivotx`) — framework-agnostic classes that wrap the HTML Canvas 2D API: shapes (`Circle`, `Rectangle`, `Line`, `Label`, `GameImage`, `Sprite`, `Platform`), utilities (`Point`, `Canvas`, `AssetLoader`, `Camera`, `SpriteAnimator`, `TiledBackground`, `Tilemap`), and physics helpers (`aabbOverlap`, `aabbOverlapDepth`, `createAABB`).
 - **React** (`pivotx/react`) — declarative JSX components (`PivotCanvas`, `PivotCircle`, `PivotImage`, `PivotSprite`, `PivotPlatform`, `PivotTilemap`, etc.) and the `useGameLoop` hook. React is an optional peer dependency.
 
