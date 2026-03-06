@@ -91,6 +91,13 @@ export class Tilemap implements IDrawable {
    * @param worldY  Y position in world pixels.
    */
   getTileAt(worldX: number, worldY: number): number {
+    if (!Number.isFinite(worldX) || !Number.isFinite(worldY)) {
+      console.warn(
+        `[pIvotX Tilemap.getTileAt] Invalid coordinates: x=${worldX}, y=${worldY}. ` +
+        `Expected finite numbers.`,
+      );
+      return -1;
+    }
     const col = Math.floor(worldX / this._tileSize);
     const row = Math.floor(worldY / this._tileSize);
 
@@ -108,8 +115,21 @@ export class Tilemap implements IDrawable {
    * @param frameIndex  New frame index, or -1 to clear the tile.
    */
   setTile(col: number, row: number, frameIndex: number): void {
+    if (!Number.isFinite(col) || !Number.isFinite(row) ||
+        !Number.isInteger(col) || !Number.isInteger(row)) {
+      console.warn(
+        `[pIvotX Tilemap.setTile] Invalid indices: col=${col}, row=${row}. ` +
+        `Expected finite integers.`,
+      );
+      return;
+    }
     if (row >= 0 && row < this.rows && col >= 0 && col < this.cols) {
       this._mapData[row][col] = frameIndex;
+    } else {
+      console.warn(
+        `[pIvotX Tilemap.setTile] Out of bounds: col=${col}, row=${row}. ` +
+        `Map is ${this.cols}×${this.rows}.`,
+      );
     }
   }
 
@@ -133,6 +153,14 @@ export class Tilemap implements IDrawable {
    * @param row  Row index.
    */
   getTileBounds(col: number, row: number): AABB {
+    if (!Number.isFinite(col) || !Number.isFinite(row) ||
+        !Number.isInteger(col) || !Number.isInteger(row)) {
+      console.warn(
+        `[pIvotX Tilemap.getTileBounds] Invalid indices: col=${col}, row=${row}. ` +
+        `Expected finite integers.`,
+      );
+      return { left: 0, right: 0, top: 0, bottom: 0 };
+    }
     return {
       left:   col * this._tileSize,
       right:  (col + 1) * this._tileSize,
