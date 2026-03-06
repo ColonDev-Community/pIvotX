@@ -1,0 +1,11 @@
+# All files — require maintainer review on every PR
+* @sachithamh
+
+# Core source code
+/src/ @sachithamh
+
+# Package and build config — sensitive to supply chain attacks
+package.json @sachithamh
+package-lock.json @sachithamh
+rollup.config.js @sachithamh
+tsconfig.json @sachithamh
