@@ -2,6 +2,8 @@
 
 Lightweight 2D game development library. One package, three ways to use it.
 
+[🌐 Website](https://pivotx.colondev.com/) · [🎮 Sample Games & Tutorials](https://pivotx.colondev.com/tutorials) · [📖 Guide](./GUIDE.md) · [📦 npm](https://www.npmjs.com/package/@colon-dev/pivotx) · [🐙 GitHub](https://github.com/ColonDev-Community/pIvotX)
+
 | Target | Import style | Build required? |
 |---|---|---|
 | Vanilla JS | `<script src="cdn">` → `window.PivotX` | No |
@@ -831,6 +833,38 @@ After publishing, users can use the CDN immediately:
 <!-- or -->
 <script src="https://unpkg.com/@colon-dev/pivotx/dist/pivotx.umd.min.js"></script>
 ```
+
+---
+
+## Sample Games & Tutorials
+
+Learn pIvotX by building real games — from a bouncing ball to a full platformer.
+All tutorials include step-by-step code breakdowns.
+
+👉 **[Browse all tutorials →](https://pivotx.colondev.com/tutorials)**
+
+| Game | Level | What you'll learn |
+|---|---|---|
+| **Bouncing Ball** | Beginner | Canvas setup, game loop, simple physics |
+| **Player Movement** | Beginner | Keyboard input, WASD + arrow keys, boundary clamping |
+| **Static Scene** | Beginner | Layered rendering without a game loop |
+| **Space Shooter** | Intermediate | Enemies, waves, power-ups, explosions |
+| **Dungeon of Shadows** | Advanced | Procedural dungeons, melee & ranged combat, loot, bosses |
+| **Nitro Highway** | Advanced | Endless runner, police AI, nitro boost, wanted levels |
+| **NEXUS 2500: The Last Signal** | Advanced | 5-chapter story, 14 enemy types, boss phases, weapon upgrades |
+| **Aetherdrift** | Advanced | Wall-jumping, dashing, 3-hit combos, 3 realms, boss fights |
+
+---
+
+## Links
+
+| | |
+|---|---|
+| 🌐 Website | <https://pivotx.colondev.com/> |
+| 🎮 Tutorials & Sample Games | <https://pivotx.colondev.com/tutorials> |
+| 📦 npm | <https://www.npmjs.com/package/@colon-dev/pivotx> |
+| 🐙 GitHub | <https://github.com/ColonDev-Community/pIvotX> |
+| 🐛 Issues | <https://github.com/ColonDev-Community/pIvotX/issues> |
 
 ---
 

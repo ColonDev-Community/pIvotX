@@ -2,6 +2,10 @@
 
 From your first shape to a full animated game, step by step.
 
+> **🌐 Website:** <https://pivotx.colondev.com/>  
+> **🎮 Sample Games & Tutorials:** <https://pivotx.colondev.com/tutorials>  
+> Learn by building — 8 complete games from beginner to advanced.
+
 ---
 
 ## Table of Contents
