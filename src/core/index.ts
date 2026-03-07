@@ -29,6 +29,8 @@ export { Tilemap }         from './tilemap/Tilemap';
 
 // ── New: Physics / Collision ─────────────────────────────────────────────────
 export { aabbOverlap, aabbOverlapDepth, createAABB } from './physics/collision';
+export { stepBody, resolveCollisions } from './physics/body';
+export type { PhysicsBody, StaticRect, StepOptions, CollisionResult } from './physics/body';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 export type {

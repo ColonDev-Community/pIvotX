@@ -6,7 +6,7 @@ import dts        from 'rollup-plugin-dts';
 const tsPlugin = () => typescript({ tsconfig: './tsconfig.json' });
 
 const banner = `/*!
- * pIvotX v1.0.1
+ * pIvotX v1.2.0
  * Lightweight 2D game library — Vanilla JS, TypeScript & React
  * (c) ${new Date().getFullYear()} ColonDev Community | MIT License
  * https://github.com/ColonDev-Community/pIvotX
@@ -69,6 +69,29 @@ export default [
   {
     input:   'src/react/index.ts',
     output:  { file: 'dist/react.d.ts', format: 'esm' },
+    plugins: [dts()],
+  },
+
+  // ── 9. React Native ESM — import { PivotNativeCanvas } from 'pivotx/react-native'
+  {
+    input:    'src/react-native/index.ts',
+    external: ['react', 'react/jsx-runtime', 'react-native', 'react-native-webview'],
+    output:   { file: 'dist/react-native.esm.js', format: 'esm', banner, sourcemap: true },
+    plugins:  [resolve(), tsPlugin()],
+  },
+
+  // ── 10. React Native CJS — const { PivotNativeCanvas } = require('pivotx/react-native')
+  {
+    input:    'src/react-native/index.ts',
+    external: ['react', 'react/jsx-runtime', 'react-native', 'react-native-webview'],
+    output:   { file: 'dist/react-native.cjs.js', format: 'cjs', banner, sourcemap: true, exports: 'named' },
+    plugins:  [resolve(), tsPlugin()],
+  },
+
+  // ── 11. Types — react-native
+  {
+    input:   'src/react-native/index.ts',
+    output:  { file: 'dist/react-native.d.ts', format: 'esm' },
     plugins: [dts()],
   },
 

@@ -1,6 +1,6 @@
 # pIvotX
 
-Lightweight 2D game development library. One package, three ways to use it.
+Lightweight 2D game development library. One package, four ways to use it.
 
 [🌐 Website](https://pivotx.colondev.com/) · [🎮 Sample Games & Tutorials](https://pivotx.colondev.com/tutorials) · [📖 Guide](./GUIDE.md) · [📦 npm](https://www.npmjs.com/package/@colon-dev/pivotx) · [🐙 GitHub](https://github.com/ColonDev-Community/pIvotX)
 
@@ -9,6 +9,7 @@ Lightweight 2D game development library. One package, three ways to use it.
 | Vanilla JS | `<script src="cdn">` → `window.PivotX` | No |
 | TypeScript | `import { Canvas } from '@colon-dev/pivotx'` | Yes (your project) |
 | React | `import { PivotCanvas } from '@colon-dev/pivotx/react'` | Yes (your project) |
+| React Native / Expo | `import { PivotNativeCanvas } from '@colon-dev/pivotx/react-native'` | Yes (Expo / RN) — iOS, Android & Web |
 
 ---
 
@@ -170,6 +171,120 @@ function BouncingBall() {
   );
 }
 ```
+
+---
+
+### React Native / Expo
+
+Run pIvotX games inside React Native or Expo apps. Works on **iOS, Android, and Expo Web** — same code, every platform.
+
+- **Native (iOS / Android):** renders a `<WebView>` running the pIvotX UMD bundle + bridge renderer. Draw commands are JSON-serialized and injected via `injectJavaScript`.
+- **Web (Expo Web / react-native-web):** renders a plain `<canvas>` element directly — no WebView needed. Draw commands are executed synchronously via `executeCommands()`. Detected automatically via `Platform.OS === 'web'`.
+
+```bash
+npm install @colon-dev/pivotx react-native-webview
+npx expo install react-native-webview   # Expo managed workflow
+```
+
+> `react-native-webview` is only needed on native (iOS/Android). On Expo Web it's not used. pIvotX marks it as an optional peer dependency.
+
+**JSX mode** — declarative components:
+
+```tsx
+import { useState } from 'react';
+import {
+  PivotNativeCanvas, PivotCircle, PivotLabel, useNativeGameLoop,
+} from '@colon-dev/pivotx/react-native';
+
+export default function GameScreen() {
+  const [x, setX] = useState(200);
+
+  useNativeGameLoop((dt) => {
+    setX(prev => (prev + 100 * dt) % 400);
+  });
+
+  return (
+    <PivotNativeCanvas width={400} height={300} background="#1a1a2e">
+      <PivotCircle center={{ x, y: 150 }} radius={24} fill="#e94560" />
+      <PivotLabel text="Hello Expo!" position={{ x: 200, y: 30 }} fill="white" />
+    </PivotNativeCanvas>
+  );
+}
+```
+
+**JSX mode with camera and touch input:**
+
+```tsx
+import { useState, useRef, useCallback } from 'react';
+import {
+  PivotNativeCanvas, PivotNativeCamera, PivotCircle, PivotRectangle,
+  PivotPlatform, PivotLabel, useNativeGameLoop,
+} from '@colon-dev/pivotx/react-native';
+
+export default function PlatformerScreen() {
+  const player = useRef({ x: 100, y: 200, vy: 0 });
+  const camera = useRef({ x: 0, y: 0 });
+  const [, tick] = useState(0);
+
+  useNativeGameLoop((dt) => {
+    const p = player.current;
+    p.vy += 800 * dt;         // gravity
+    p.y  += p.vy * dt;
+    if (p.y > 250) { p.y = 250; p.vy = 0; }  // simple floor
+    camera.current = { x: p.x - 200, y: 0 };
+    tick(n => n + 1);
+  });
+
+  const handleTouch = useCallback((action: string, touches: Array<{x: number; y: number}>) => {
+    if (action === 'start') {
+      player.current.vy = -400;  // jump on tap
+    }
+  }, []);
+
+  const p = player.current;
+  return (
+    <PivotNativeCanvas width={400} height={300} background="#1a1a2e" onTouch={handleTouch}>
+      <PivotNativeCamera position={camera.current}>
+        <PivotPlatform position={{ x: 0, y: 280 }} width={800} height={20} fill="#4a7c59" />
+        <PivotRectangle position={{ x: p.x, y: p.y }} width={24} height={24} fill="#e94560" />
+      </PivotNativeCamera>
+      <PivotLabel text="Tap to jump" position={{ x: 200, y: 15 }} fill="white" />
+    </PivotNativeCanvas>
+  );
+}
+```
+
+**Script mode** — full 60fps game loop running inside the WebView:
+
+```tsx
+import { PivotNativeCanvas } from '@colon-dev/pivotx/react-native';
+
+export default function GameScreen() {
+  return (
+    <PivotNativeCanvas
+      width={400}
+      height={300}
+      script={`
+        var { Canvas, Circle, Point } = PivotX;
+        var canvas = new Canvas("game");
+        var ball = { x: 200, y: 150, vx: 160, vy: 120, r: 20 };
+        canvas.startLoop(function(dt) {
+          canvas.clear();
+          ball.x += ball.vx * dt;
+          ball.y += ball.vy * dt;
+          if (ball.x < ball.r || ball.x > 400 - ball.r) ball.vx *= -1;
+          if (ball.y < ball.r || ball.y > 300 - ball.r) ball.vy *= -1;
+          var c = new Circle(Point(ball.x, ball.y), ball.r);
+          c.fillColor = "#e94560";
+          canvas.add(c);
+        });
+      `}
+    />
+  );
+}
+```
+
+On native, the WebView loads the pIvotX UMD bundle and runs the bridge renderer internally. On Expo Web, `PivotNativeCanvas` detects `Platform.OS === 'web'` and renders a direct `<canvas>` element instead — no WebView involved. All touch events are forwarded back to React Native. On web, both touch and mouse events are handled so desktop browsers work too.
 
 ---
 
@@ -660,6 +775,82 @@ if (depth) {
 
 ---
 
+### Physics Body Helpers
+
+Sub-stepped physics integrator and collision resolver. Prevents tunneling through thin platforms by breaking movement into smaller steps. Available from all three entry points: `pivotx`, `pivotx/react`, and `pivotx/react-native`.
+
+```ts
+import { stepBody, resolveCollisions } from '@colon-dev/pivotx';
+import type { PhysicsBody, StaticRect, StepOptions, CollisionResult } from '@colon-dev/pivotx';
+```
+
+#### `PhysicsBody` interface
+
+```ts
+interface PhysicsBody {
+  x: number;  y: number;
+  vx: number; vy: number;
+  width: number; height: number;
+  grounded: boolean;
+}
+```
+
+#### `StaticRect` interface
+
+```ts
+interface StaticRect {
+  x: number; y: number;
+  w: number; h: number;
+}
+```
+
+#### `StepOptions`
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `gravity` | `number` | `0` | Gravity in pixels/sec² (applied to `vy`) |
+| `maxStep` | `number` | `8` | Max movement per sub-step (smaller = more accurate) |
+| `friction` | `number` | `1` | Friction multiplier applied to `vx` each frame (0–1) |
+
+#### `stepBody(body, platforms, dt, options?)`
+
+Advance a physics body by `dt` seconds. Applies gravity, friction, and resolves all collisions via sub-stepping. Modifies `body` in place. Returns `CollisionResult[]` describing which platforms and sides were hit.
+
+```ts
+const player: PhysicsBody = { x: 50, y: 100, vx: 0, vy: 0, width: 32, height: 32, grounded: false };
+const platforms: StaticRect[] = [{ x: 0, y: 350, w: 600, h: 50 }];
+
+canvas.startLoop((dt) => {
+  canvas.clear();
+  player.vx = 0;
+  if (keys['ArrowRight']) player.vx = 200;
+  if (keys['ArrowLeft'])  player.vx = -200;
+  if (keys[' '] && player.grounded) player.vy = -400;
+
+  const hits = stepBody(player, platforms, dt, { gravity: 800, friction: 0.9 });
+
+  // React to specific collisions
+  for (const hit of hits) {
+    if (hit.side === 'top') console.log('Landed on platform');
+  }
+});
+```
+
+#### `resolveCollisions(body, platforms)`
+
+Resolve collisions for a single position (no sub-stepping). Called internally by `stepBody`, but can be used directly for custom integration.
+
+#### `CollisionResult`
+
+```ts
+interface CollisionResult {
+  side: 'top' | 'bottom' | 'left' | 'right';
+  platform: StaticRect;
+}
+```
+
+---
+
 ### React Components
 
 #### `<PivotCanvas>`
@@ -761,6 +952,65 @@ useGameLoop((dt: number) => {
 
 ---
 
+### React Native / Expo Components
+
+Import from `@colon-dev/pivotx/react-native`. Requires `react-native-webview` as a peer dependency (native only — not used on Expo Web).
+
+**Platform support:** Components work identically on iOS, Android, and Expo Web. `PivotNativeCanvas` automatically detects the platform via `Platform.OS` and switches between WebView rendering (native) and direct `<canvas>` rendering (web).
+
+#### `<PivotNativeCanvas>`
+
+Root component. Renders a WebView (native) or a direct HTML5 Canvas (Expo Web) with the full pIvotX engine.
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `width` | `number` | `400` | Canvas width |
+| `height` | `number` | `300` | Canvas height |
+| `background` | `string` | `'#000'` | CSS background colour |
+| `script` | `string` | — | Game code string (script mode) |
+| `onGameEvent` | `(name, data?) => void` | — | Receive events from WebView game |
+| `onTouch` | `(action, touches) => void` | — | Touch events from the canvas |
+| `style` | `object` | — | React Native view style |
+| `children` | `ReactNode` | — | PivotNative* shape components (JSX mode) |
+| `ref` | `PivotNativeCanvasHandle` | — | `.postMessage()`, `.injectScript()` |
+
+#### Native Shape Components
+
+All accept the same props as web React components, with one key difference:
+**Image-based components use `src: string` (URL)** instead of `HTMLImageElement` or `SpriteSheet`, because `HTMLImageElement` doesn't exist in React Native.
+
+| Component | Key Props |
+|---|---|
+| `<PivotCircle>` | `center`, `radius`, `fill`, `stroke`, `lineWidth` |
+| `<PivotRectangle>` | `position`, `width`, `height`, `fill`, `stroke` |
+| `<PivotLine>` | `start`, `end`, `stroke`, `lineWidth` |
+| `<PivotLabel>` | `text`, `position`, `font`, `fill`, `textAlign` |
+| `<PivotImage>` | `src`, `position`, `width`, `height`, `opacity`, `rotation` |
+| `<PivotSprite>` | `sheetSrc`, `frameWidth`, `frameHeight`, `position`, `frame`, `scale`, `flipX` |
+| `<PivotPlatform>` | `position`, `width`, `height`, `fill`, `stroke`, `oneWay` |
+| `<PivotTilemap>` | `sheetSrc`, `frameWidth`, `frameHeight`, `mapData`, `tileSize`, `solidTiles` |
+| `<PivotTiledBackground>` | `src`, `canvasWidth`, `canvasHeight`, `scrollX`, `scrollY`, `parallaxFactor` |
+
+#### `<PivotNativeCamera>`
+
+Wraps children with camera transforms. Shapes outside the camera render in screen space (HUD).
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `position` | `IPoint` | — | Camera viewport top-left |
+| `zoom` | `number` | `1` | Zoom level |
+| `children` | `ReactNode` | — | World-space shapes |
+
+#### `useNativeGameLoop(callback)`
+
+Same pattern as `useGameLoop` — runs an rAF loop for driving state updates.
+
+#### `useNativePostMessage(canvasRef, handlers?)`
+
+Bidirectional messaging between RN and the WebView game. `handlers` maps event names to callbacks.
+
+---
+
 ### Custom Shapes
 
 Implement `IDrawable` to create shapes that work with `canvas.add()`:
@@ -811,8 +1061,11 @@ After `npm run build`, the `dist/` folder contains:
 | `pivotx.cjs.js` | CJS | `require()` in Node / older toolchains |
 | `react.esm.js` | ESM | React components + hooks |
 | `react.cjs.js` | CJS | React (CommonJS) |
+| `react-native.esm.js` | ESM | React Native / Expo components + hooks |
+| `react-native.cjs.js` | CJS | React Native (CommonJS) |
 | `index.d.ts` | types | TypeScript types for core |
 | `react.d.ts` | types | TypeScript types for React layer |
+| `react-native.d.ts` | types | TypeScript types for React Native layer |
 
 ---
 

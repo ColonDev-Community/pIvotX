@@ -31,8 +31,16 @@ From your first shape to a full animated game, step by step.
 19. [Parallax Scrolling Backgrounds](#19-parallax-scrolling-backgrounds)
 20. [Camera — Following the Player](#20-camera--following-the-player)
 21. [Platforms & AABB Collision](#21-platforms--aabb-collision)
-22. [Tilemaps — Grid-Based Levels](#22-tilemaps--grid-based-levels)
-23. [Example — Putting It All Together (Platformer)](#23-example--putting-it-all-together-platformer)
+22. [Physics Body — Sub-Stepped Collision](#22-physics-body--sub-stepped-collision)
+23. [Tilemaps — Grid-Based Levels](#23-tilemaps--grid-based-levels)
+24. [Example — Putting It All Together (Platformer)](#24-example--putting-it-all-together-platformer)
+25. [React Native / Expo — Getting Started](#25-react-native--expo--getting-started)
+26. [PivotNativeCanvas — The Root Component](#26-pivotnativecanvas--the-root-component)
+27. [Shape Components in React Native](#27-shape-components-in-react-native)
+28. [useNativeGameLoop — The Animation Loop](#28-usenativegameloop--the-animation-loop)
+29. [PivotNativeCamera — World Scrolling](#29-pivotnativecamera--world-scrolling)
+30. [Touch Input & Keyboard Controls](#30-touch-input--keyboard-controls)
+31. [Example — React Native Platformer](#31-example--react-native-platformer)
 
 ---
 
@@ -1325,7 +1333,168 @@ if (plat.oneWay && player.vy <= 0) {
 
 ---
 
-## 22. Tilemaps — Grid-Based Levels
+## 22. Physics Body — Sub-Stepped Collision
+
+In Section 21 you learned to resolve collisions manually with `aabbOverlapDepth`. That works well, but fast-moving bodies can **tunnel through thin platforms** — they move so far in one frame that they skip right past a 16-pixel ledge.
+
+`stepBody` solves this by breaking each frame into **sub-steps**. It also handles gravity, friction, and collision resolution for you, returning a list of which platforms were hit and from which side.
+
+### The interfaces
+
+```ts
+import { stepBody } from '@colon-dev/pivotx';
+import type { PhysicsBody, StaticRect, StepOptions, CollisionResult } from '@colon-dev/pivotx';
+```
+
+A `PhysicsBody` is a plain object with position, velocity, and size:
+
+```ts
+const player: PhysicsBody = {
+  x: 50, y: 200,
+  vx: 0, vy: 0,
+  width: 28, height: 32,
+  grounded: false,
+};
+```
+
+Platforms are `StaticRect` — simple `{ x, y, w, h }` objects:
+
+```ts
+const platforms: StaticRect[] = [
+  { x: 0,   y: 350, w: 600, h: 50 },  // ground
+  { x: 150, y: 250, w: 100, h: 16 },  // floating ledge
+];
+```
+
+### Basic usage
+
+```ts
+const canvas = new Canvas('game');
+
+const keys: Record<string, boolean> = {};
+document.addEventListener('keydown', (e) => { keys[e.key] = true;  });
+document.addEventListener('keyup',   (e) => { keys[e.key] = false; });
+
+canvas.startLoop((dt) => {
+  canvas.clear();
+
+  // ── Input → velocity ──
+  player.vx = 0;
+  if (keys['ArrowRight'] || keys['d']) player.vx =  200;
+  if (keys['ArrowLeft']  || keys['a']) player.vx = -200;
+  if ((keys['ArrowUp'] || keys['w'] || keys[' ']) && player.grounded) {
+    player.vy = -400;
+  }
+
+  // ── Physics — one call does everything ──
+  const hits = stepBody(player, platforms, dt, {
+    gravity:  800,   // pixels/sec²
+    friction: 0.9,   // slight horizontal drag
+    maxStep:  8,     // sub-step size (smaller = more accurate)
+  });
+
+  // ── React to collisions ──
+  for (const hit of hits) {
+    if (hit.side === 'top') {
+      // Landed on a platform — player.grounded is already true
+    }
+  }
+
+  // ── Draw ──
+  for (const p of platforms) {
+    const rect = new Rectangle(Point(p.x, p.y), p.w, p.h);
+    rect.fillColor = '#4a7c59';
+    canvas.add(rect);
+  }
+
+  const pr = new Rectangle(Point(player.x, player.y), player.width, player.height);
+  pr.fillColor = '#e94560';
+  canvas.add(pr);
+});
+```
+
+Compare this with Section 21 — the manual gravity, position updates, and collision loops are all replaced by a single `stepBody()` call.
+
+### How sub-stepping works
+
+`stepBody` calculates how far the body would travel in this frame (`speed × dt`). If that distance exceeds `maxStep` (default 8 pixels), it splits the frame into multiple smaller steps:
+
+```
+Frame dt = 0.016s, body speed = 600 px/s
+→ distance = 600 × 0.016 = 9.6 px
+→ 9.6 / 8 = 2 sub-steps (each moves ~4.8 px)
+```
+
+Each sub-step applies gravity, moves the body, and resolves collisions. This prevents the body from passing through platforms that are thinner than the per-frame movement distance.
+
+### StepOptions
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `gravity` | `number` | `0` | Gravity in pixels/sec² (applied to `vy`) |
+| `maxStep` | `number` | `8` | Max movement per sub-step in pixels |
+| `friction` | `number` | `1` | Multiplier applied to `vx` each frame (0–1) |
+
+### Reacting to specific collisions
+
+`stepBody` returns a `CollisionResult[]` telling you which side of which platform was hit:
+
+```ts
+const hits = stepBody(player, platforms, dt, { gravity: 800 });
+
+for (const hit of hits) {
+  if (hit.side === 'top' && isLava(hit.platform)) {
+    // Player landed on lava — take damage!
+    player.health -= 1;
+  }
+  if (hit.side === 'left' || hit.side === 'right') {
+    // Wall collision — could trigger wall-slide animation
+  }
+}
+```
+
+### Using with React Native
+
+`stepBody` is a pure function — no DOM or canvas dependency. It's exported from all three entry points:
+
+```ts
+// From core
+import { stepBody } from '@colon-dev/pivotx';
+
+// From React
+import { stepBody } from '@colon-dev/pivotx/react';
+
+// From React Native
+import { stepBody } from '@colon-dev/pivotx/react-native';
+```
+
+Typical React Native usage:
+
+```tsx
+const player = useRef<PhysicsBody>({ x: 50, y: 200, vx: 0, vy: 0, width: 24, height: 24, grounded: false });
+
+useNativeGameLoop((dt) => {
+  const p = player.current;
+  // Set vx from input...
+  stepBody(p, platforms, dt, { gravity: 800 });
+  tick(n => n + 1);
+});
+```
+
+### When to use `stepBody` vs manual collision
+
+| Use `stepBody` | Use manual (`aabbOverlapDepth`) |
+|---|---|
+| Simple platformer with rectangular platforms | Complex collision with non-AABB shapes |
+| Fast-moving bodies that might tunnel | Slow bodies where tunneling isn't a concern |
+| Want gravity + friction handled for you | Need custom gravity per region |
+| Want collision results (side + platform) | Need fine-grained per-axis resolution control |
+
+Both approaches work — `stepBody` is a convenience that covers the common case.
+
+---
+
+## 23. Tilemaps — Grid-Based Levels
 
 `Tilemap` renders a 2D grid of tiles from a `SpriteSheet` and provides collision queries. Perfect for building levels.
 
@@ -1457,7 +1626,7 @@ canvas.startLoop((dt) => {
 
 ---
 
-## 23. Example — Putting It All Together (Platformer)
+## 24. Example — Putting It All Together (Platformer)
 
 This example combines all the new features into a simple side-scrolling platformer: asset loading, sprites, animation, tilemap collision, camera, and parallax backgrounds.
 
@@ -1639,3 +1808,675 @@ main();
 4. **Sprite animation** — the animator switches between idle/run/jump clips based on state.
 5. **Camera** — follows the player smoothly and clamps to the world boundaries.
 6. **Collision** — `getSolidTilesInRegion` queries nearby solid tiles, `aabbOverlapDepth` resolves overlaps by pushing the player out along the smallest axis.
+
+---
+
+## 25. React Native / Expo — Getting Started
+
+Everything you've learned so far (shapes, sprites, cameras, physics) works on mobile too. The `pivotx/react-native` entry point provides JSX components that mirror the web React layer, plus hooks for game loops and touch input.
+
+**How it works under the hood:**
+
+- **iOS & Android:** `PivotNativeCanvas` renders a `<WebView>` containing an HTML5 Canvas with the full pIvotX engine. Your shape components register draw commands, which are JSON-serialized and injected into the WebView each frame.
+- **Expo Web:** `PivotNativeCanvas` detects `Platform.OS === 'web'` and renders a plain `<canvas>` element directly — no WebView involved. Draw commands are executed synchronously on the canvas context.
+
+You write the **same code** for all three platforms. The rendering path switches automatically.
+
+### Setting up an Expo project
+
+```bash
+npx create-expo-app my-pivotx-game
+cd my-pivotx-game
+npm install @colon-dev/pivotx react-native-webview
+npx expo install react-native-webview
+```
+
+> `react-native-webview` is only needed on native (iOS/Android). On Expo Web it's not loaded. pIvotX treats it as an optional peer dependency.
+
+### Your first mobile game screen
+
+```tsx
+import { PivotNativeCanvas, PivotCircle, PivotLabel } from '@colon-dev/pivotx/react-native';
+
+export default function GameScreen() {
+  return (
+    <PivotNativeCanvas width={400} height={300} background="#1a1a2e">
+      <PivotCircle center={{ x: 200, y: 150 }} radius={40} fill="#e94560" stroke="white" lineWidth={3} />
+      <PivotLabel text="Hello Mobile!" position={{ x: 200, y: 30 }} font="20px Arial" fill="white" />
+    </PivotNativeCanvas>
+  );
+}
+```
+
+This renders a red circle with a label — identical output on iOS, Android, and web.
+
+---
+
+## 26. PivotNativeCanvas — The Root Component
+
+`PivotNativeCanvas` is the root container for all native shape components. It replaces both `Canvas` (core) and `PivotCanvas` (React) when building for React Native / Expo.
+
+### Props
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `width` | `number` | `400` | Canvas width in pixels |
+| `height` | `number` | `300` | Canvas height in pixels |
+| `background` | `string` | `'#000'` | CSS background colour |
+| `script` | `string` | — | Game code string (script mode — runs inside WebView) |
+| `onGameEvent` | `(name, data?) => void` | — | Receive custom events from WebView game code |
+| `onTouch` | `(action, touches) => void` | — | Touch/mouse events from the canvas |
+| `style` | `object` | — | React Native view style for the wrapper |
+| `children` | `ReactNode` | — | PivotNative\* shape components |
+
+### Ref handle
+
+Access the imperative API via `useRef`:
+
+```tsx
+import { useRef } from 'react';
+import { PivotNativeCanvas, PivotNativeCanvasHandle } from '@colon-dev/pivotx/react-native';
+
+const canvasRef = useRef<PivotNativeCanvasHandle>(null);
+
+// Send data to the WebView game
+canvasRef.current?.postMessage({ type: 'pause' });
+
+// Execute raw JS inside the WebView
+canvasRef.current?.injectScript('console.log("hello from RN")');
+```
+
+### JSX mode vs Script mode
+
+There are two ways to build games:
+
+**JSX mode** — shape components as children, state in React:
+```tsx
+<PivotNativeCanvas width={400} height={300}>
+  <PivotCircle center={{ x, y: 150 }} radius={20} fill="gold" />
+</PivotNativeCanvas>
+```
+
+**Script mode** — full game loop running inside the WebView (native only):
+```tsx
+<PivotNativeCanvas width={400} height={300} script={`
+  var canvas = new PivotX.Canvas("game");
+  canvas.startLoop(function(dt) {
+    canvas.clear();
+    // your full game here — uses core API directly
+  });
+`} />
+```
+
+JSX mode is recommended for most games. Script mode is useful when you want to run an existing vanilla JS pIvotX game inside a mobile app.
+
+---
+
+## 27. Shape Components in React Native
+
+Every core shape has a matching native component. They work just like the React web components, with one important difference: **image-based components use `src: string` (URL) instead of `HTMLImageElement` or `SpriteSheet`**, because `HTMLImageElement` doesn't exist in React Native.
+
+### Basic shapes
+
+```tsx
+import {
+  PivotCircle, PivotRectangle, PivotLine, PivotLabel,
+} from '@colon-dev/pivotx/react-native';
+```
+
+```tsx
+<PivotCircle center={{ x: 100, y: 100 }} radius={30} fill="#e94560" stroke="white" lineWidth={2} />
+<PivotRectangle position={{ x: 50, y: 200 }} width={100} height={60} fill="skyblue" />
+<PivotLine start={{ x: 0, y: 0 }} end={{ x: 200, y: 150 }} stroke="crimson" lineWidth={2} />
+<PivotLabel text="Score: 42" position={{ x: 10, y: 20 }} font="bold 18px Arial" fill="white" textAlign="left" />
+```
+
+### Images
+
+```tsx
+import { PivotImage } from '@colon-dev/pivotx/react-native';
+
+<PivotImage
+  src="https://example.com/hero.png"
+  position={{ x: 100, y: 50 }}
+  width={64}
+  height={64}
+  opacity={0.9}
+  rotation={0.1}
+  pixelPerfect
+/>
+```
+
+### Sprites
+
+Instead of creating a `SpriteSheet` object, you provide the spritesheet URL and frame dimensions directly:
+
+```tsx
+import { PivotSprite } from '@colon-dev/pivotx/react-native';
+
+<PivotSprite
+  sheetSrc="https://example.com/hero-sheet.png"
+  frameWidth={32}
+  frameHeight={32}
+  position={{ x: 100, y: 200 }}
+  frame={currentFrame}
+  scale={2}
+  flipX={facingLeft}
+  pixelPerfect
+/>
+```
+
+### Platforms
+
+```tsx
+import { PivotPlatform } from '@colon-dev/pivotx/react-native';
+
+<PivotPlatform position={{ x: 0, y: 280 }} width={400} height={20} fill="#4a7c59" />
+<PivotPlatform position={{ x: 150, y: 200 }} width={80} height={12} fill="#8b5e3c" oneWay />
+```
+
+### Tilemaps
+
+```tsx
+import { PivotTilemap } from '@colon-dev/pivotx/react-native';
+
+const mapData = [
+  [-1, -1, -1, -1, -1],
+  [ 0,  1,  1,  1,  2],
+  [ 3,  4,  4,  4,  5],
+];
+
+<PivotTilemap
+  sheetSrc="https://example.com/tiles.png"
+  frameWidth={16}
+  frameHeight={16}
+  mapData={mapData}
+  tileSize={32}
+  solidTiles={[0, 1, 2, 3, 4, 5]}
+  pixelPerfect
+/>
+```
+
+> Note: `solidTiles` accepts an array of numbers (not a `Set`) in the native components. This is because the values are serialized to JSON for the WebView bridge.
+
+### Tiled backgrounds
+
+```tsx
+import { PivotTiledBackground } from '@colon-dev/pivotx/react-native';
+
+<PivotTiledBackground
+  src="https://example.com/sky.png"
+  canvasWidth={400}
+  canvasHeight={300}
+  scrollX={scrollOffset}
+  parallaxFactor={0.3}
+  opacity={0.8}
+/>
+```
+
+---
+
+## 28. useNativeGameLoop — The Animation Loop
+
+`useNativeGameLoop` is the React Native equivalent of `useGameLoop`. It runs a `requestAnimationFrame` loop for the lifetime of the component.
+
+```tsx
+import { useState } from 'react';
+import {
+  PivotNativeCanvas, PivotCircle, useNativeGameLoop,
+} from '@colon-dev/pivotx/react-native';
+
+export default function BouncingBall() {
+  const [pos, setPos] = useState({ x: 200, y: 150, vx: 160, vy: 120 });
+
+  useNativeGameLoop((dt) => {
+    setPos(prev => {
+      let { x, y, vx, vy } = prev;
+      x += vx * dt;
+      y += vy * dt;
+      if (x < 20 || x > 380) vx *= -1;
+      if (y < 20 || y > 280) vy *= -1;
+      return { x, y, vx, vy };
+    });
+  });
+
+  return (
+    <PivotNativeCanvas width={400} height={300} background="#1a1a2e">
+      <PivotCircle center={{ x: pos.x, y: pos.y }} radius={20} fill="#e94560" />
+    </PivotNativeCanvas>
+  );
+}
+```
+
+### Using `useRef` for mutable state (recommended for complex games)
+
+For games with lots of state (player position, velocity, scores, etc.), `useRef` avoids unnecessary React reconciliation:
+
+```tsx
+import { useState, useRef } from 'react';
+import {
+  PivotNativeCanvas, PivotRectangle, useNativeGameLoop,
+} from '@colon-dev/pivotx/react-native';
+
+export default function Game() {
+  const player = useRef({ x: 200, y: 200, vx: 0, vy: 0 });
+  const [, tick] = useState(0);
+
+  useNativeGameLoop((dt) => {
+    const p = player.current;
+    p.vy += 800 * dt;     // gravity
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    if (p.y > 260) { p.y = 260; p.vy = 0; }
+    tick(n => n + 1);     // trigger re-render
+  });
+
+  const p = player.current;
+  return (
+    <PivotNativeCanvas width={400} height={300} background="#1a1a2e">
+      <PivotRectangle position={{ x: p.x, y: p.y }} width={24} height={24} fill="#e94560" />
+    </PivotNativeCanvas>
+  );
+}
+```
+
+The `tick(n => n + 1)` pattern triggers a React re-render each frame so the shape props update. The actual game state lives in `useRef`, which is faster than `useState` for high-frequency updates.
+
+---
+
+## 29. PivotNativeCamera — World Scrolling
+
+`PivotNativeCamera` wraps shapes in a camera transform. Shapes inside the camera move with the world; shapes outside stay fixed on screen (perfect for HUD elements).
+
+```tsx
+import {
+  PivotNativeCanvas, PivotNativeCamera, PivotRectangle, PivotLabel,
+} from '@colon-dev/pivotx/react-native';
+```
+
+### Basic usage
+
+```tsx
+<PivotNativeCanvas width={400} height={300} background="#1a1a2e">
+  {/* World-space — scrolls with camera */}
+  <PivotNativeCamera position={cameraPos}>
+    <PivotRectangle position={{ x: 0, y: 260 }} width={2000} height={40} fill="#4a7c59" />
+    <PivotRectangle position={{ x: player.x, y: player.y }} width={24} height={24} fill="#e94560" />
+  </PivotNativeCamera>
+
+  {/* Screen-space — stays fixed */}
+  <PivotLabel text={`Score: ${score}`} position={{ x: 10, y: 20 }} fill="white" />
+</PivotNativeCanvas>
+```
+
+### Props
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `position` | `IPoint` | — | Camera viewport top-left in world coordinates |
+| `zoom` | `number` | `1` | Zoom level (2 = 2× zoom in) |
+| `children` | `ReactNode` | — | World-space shapes |
+
+### Camera follow pattern
+
+In your game loop, calculate the camera position to follow the player:
+
+```tsx
+const player = useRef({ x: 100, y: 200, vx: 100, vy: 0 });
+const cam    = useRef({ x: 0, y: 0 });
+const [, tick] = useState(0);
+
+useNativeGameLoop((dt) => {
+  const p = player.current;
+  p.x += p.vx * dt;
+
+  // Smooth follow with lerp
+  const lerp = 0.08;
+  const targetX = p.x - 200;  // centre player on screen
+  const targetY = p.y - 150;
+  cam.current.x += (targetX - cam.current.x) * lerp;
+  cam.current.y += (targetY - cam.current.y) * lerp;
+
+  tick(n => n + 1);
+});
+
+// In JSX:
+<PivotNativeCamera position={cam.current}>
+  {/* world shapes */}
+</PivotNativeCamera>
+```
+
+---
+
+## 30. Touch Input & Keyboard Controls
+
+### Touch input (mobile)
+
+`PivotNativeCanvas` provides touch events via the `onTouch` prop. Touches are reported as `{ x, y, id }` relative to the canvas.
+
+```tsx
+const handleTouch = useCallback((action: string, touches: Array<{ x: number; y: number; id: number }>) => {
+  if (action === 'start') {
+    const touch = touches[0];
+    // Divide canvas into zones: left third, right third, top half = jump
+    const W = 400;
+    if (touch.x < W / 3) {
+      // move left
+    } else if (touch.x > W * 2 / 3) {
+      // move right
+    } else {
+      // jump
+    }
+  }
+  if (action === 'end') {
+    // stop moving
+  }
+}, []);
+
+<PivotNativeCanvas width={400} height={300} onTouch={handleTouch}>
+  {/* shapes */}
+</PivotNativeCanvas>
+```
+
+Touch actions are `'start'`, `'move'`, and `'end'`. On Expo Web, both touch and mouse events are automatically handled, so the game works on desktop browsers too.
+
+### Keyboard controls (Expo Web)
+
+When running on Expo Web, you can add keyboard input for a better desktop experience. Use `Platform.OS` to only attach keyboard listeners on web:
+
+```tsx
+import { useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
+
+export default function Game() {
+  const keys = useRef<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+
+    const onDown = (e: KeyboardEvent) => { keys.current[e.key] = true; };
+    const onUp   = (e: KeyboardEvent) => { keys.current[e.key] = false; };
+    window.addEventListener('keydown', onDown);
+    window.addEventListener('keyup', onUp);
+    return () => {
+      window.removeEventListener('keydown', onDown);
+      window.removeEventListener('keyup', onUp);
+    };
+  }, []);
+
+  useNativeGameLoop((dt) => {
+    const p = player.current;
+    if (keys.current['ArrowLeft']  || keys.current['a']) p.x -= 200 * dt;
+    if (keys.current['ArrowRight'] || keys.current['d']) p.x += 200 * dt;
+    if (keys.current['ArrowUp']    || keys.current['w']) {
+      // jump
+    }
+    tick(n => n + 1);
+  });
+
+  // ...
+}
+```
+
+### Combining touch and keyboard
+
+For a game that works on both mobile and desktop:
+
+```tsx
+const input = useRef({ left: false, right: false, jump: false });
+
+// Touch handler — zones
+const handleTouch = useCallback((action: string, touches: Array<{ x: number; y: number }>) => {
+  if (action === 'start' || action === 'move') {
+    const t = touches[0];
+    input.current.left  = t.x < 133;
+    input.current.right = t.x > 267;
+    input.current.jump  = t.y < 150;
+  }
+  if (action === 'end') {
+    input.current.left = false;
+    input.current.right = false;
+    input.current.jump = false;
+  }
+}, []);
+
+// Keyboard (web only)
+useEffect(() => {
+  if (Platform.OS !== 'web') return;
+  const onDown = (e: KeyboardEvent) => {
+    if (e.key === 'ArrowLeft' || e.key === 'a') input.current.left = true;
+    if (e.key === 'ArrowRight' || e.key === 'd') input.current.right = true;
+    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === ' ') input.current.jump = true;
+  };
+  const onUp = (e: KeyboardEvent) => {
+    if (e.key === 'ArrowLeft' || e.key === 'a') input.current.left = false;
+    if (e.key === 'ArrowRight' || e.key === 'd') input.current.right = false;
+    if (e.key === 'ArrowUp' || e.key === 'w' || e.key === ' ') input.current.jump = false;
+  };
+  window.addEventListener('keydown', onDown);
+  window.addEventListener('keyup', onUp);
+  return () => { window.removeEventListener('keydown', onDown); window.removeEventListener('keyup', onUp); };
+}, []);
+
+// In game loop — works with both input methods
+useNativeGameLoop((dt) => {
+  if (input.current.left)  player.current.x -= 200 * dt;
+  if (input.current.right) player.current.x += 200 * dt;
+  if (input.current.jump)  { /* jump logic */ }
+  tick(n => n + 1);
+});
+```
+
+---
+
+## 31. Example — React Native Platformer
+
+A complete mini-platformer using the React Native components. This example uses JSX mode with `useNativeGameLoop`, camera follow, platform collision, and touch + keyboard input.
+
+```tsx
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { Platform } from 'react-native';
+import {
+  PivotNativeCanvas, PivotNativeCamera,
+  PivotRectangle, PivotPlatform, PivotCircle, PivotLabel,
+  useNativeGameLoop, createAABB, aabbOverlapDepth,
+} from '@colon-dev/pivotx/react-native';
+
+// ── Level data ──────────────────────────────────────────────────────────────
+const PLATFORMS = [
+  { x: 0,   y: 280, w: 800, h: 20 },   // ground
+  { x: 100, y: 220, w: 80,  h: 12 },   // ledge 1
+  { x: 250, y: 180, w: 80,  h: 12 },   // ledge 2
+  { x: 400, y: 140, w: 80,  h: 12 },   // ledge 3
+];
+
+const COINS = [
+  { x: 130, y: 200 },
+  { x: 280, y: 160 },
+  { x: 430, y: 120 },
+  { x: 550, y: 260 },
+];
+
+// ── Constants ───────────────────────────────────────────────────────────────
+const W = 400, H = 300;
+const GRAVITY = 800;
+const PLAYER_SPEED = 180;
+const JUMP_FORCE = -380;
+const PLAYER_W = 20, PLAYER_H = 24;
+
+export default function MobilePlatformer() {
+  const player = useRef({ x: 50, y: 200, vx: 0, vy: 0, grounded: false });
+  const cam = useRef({ x: 0, y: 0 });
+  const coins = useRef([...COINS]);
+  const score = useRef(0);
+  const input = useRef({ left: false, right: false, jump: false });
+  const [, tick] = useState(0);
+
+  // ── Touch input ─────────────────────────────────────────────────────────
+  const handleTouch = useCallback((action: string, touches: Array<{ x: number; y: number }>) => {
+    if (action === 'start' || action === 'move') {
+      const t = touches[0];
+      input.current.left  = t.x < W / 3;
+      input.current.right = t.x > W * 2 / 3;
+      input.current.jump  = t.y < H / 2;
+    }
+    if (action === 'end') {
+      input.current.left = false;
+      input.current.right = false;
+      input.current.jump = false;
+    }
+  }, []);
+
+  // ── Keyboard (Expo Web only) ────────────────────────────────────────────
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const onDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft'  || e.key === 'a') input.current.left = true;
+      if (e.key === 'ArrowRight' || e.key === 'd') input.current.right = true;
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === ' ') input.current.jump = true;
+    };
+    const onUp = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft'  || e.key === 'a') input.current.left = false;
+      if (e.key === 'ArrowRight' || e.key === 'd') input.current.right = false;
+      if (e.key === 'ArrowUp' || e.key === 'w' || e.key === ' ') input.current.jump = false;
+    };
+    window.addEventListener('keydown', onDown);
+    window.addEventListener('keyup', onUp);
+    return () => {
+      window.removeEventListener('keydown', onDown);
+      window.removeEventListener('keyup', onUp);
+    };
+  }, []);
+
+  // ── Game loop ───────────────────────────────────────────────────────────
+  useNativeGameLoop((dt) => {
+    const p = player.current;
+
+    // Input → velocity
+    p.vx = 0;
+    if (input.current.left)  p.vx = -PLAYER_SPEED;
+    if (input.current.right) p.vx =  PLAYER_SPEED;
+    if (input.current.jump && p.grounded) {
+      p.vy = JUMP_FORCE;
+      p.grounded = false;
+      input.current.jump = false;  // consume jump
+    }
+
+    // Gravity
+    p.vy += GRAVITY * dt;
+
+    // Move
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+
+    // Platform collision
+    p.grounded = false;
+    const pBox = createAABB(p.x, p.y, PLAYER_W, PLAYER_H);
+
+    for (const plat of PLATFORMS) {
+      const platBox = createAABB(plat.x, plat.y, plat.w, plat.h);
+      const depth = aabbOverlapDepth(pBox, platBox);
+      if (!depth) continue;
+
+      if (depth.y < depth.x) {
+        if (p.vy > 0) {
+          p.y -= depth.y;
+          p.vy = 0;
+          p.grounded = true;
+        } else {
+          p.y += depth.y;
+          p.vy = 0;
+        }
+      } else {
+        if (p.vx > 0) p.x -= depth.x;
+        else           p.x += depth.x;
+      }
+      // Rebuild player box after resolution
+      pBox.left   = p.x;
+      pBox.right  = p.x + PLAYER_W;
+      pBox.top    = p.y;
+      pBox.bottom = p.y + PLAYER_H;
+    }
+
+    // Coin collection
+    coins.current = coins.current.filter(c => {
+      const dx = (p.x + PLAYER_W / 2) - c.x;
+      const dy = (p.y + PLAYER_H / 2) - c.y;
+      if (dx * dx + dy * dy < 20 * 20) {
+        score.current += 10;
+        return false;
+      }
+      return true;
+    });
+
+    // Fall off screen → reset
+    if (p.y > 400) {
+      p.x = 50; p.y = 200; p.vx = 0; p.vy = 0;
+    }
+
+    // Camera follow (smooth lerp)
+    cam.current.x += ((p.x - W / 2) - cam.current.x) * 0.08;
+    cam.current.y += ((p.y - H / 2 - 30) - cam.current.y) * 0.08;
+
+    tick(n => n + 1);
+  });
+
+  const p = player.current;
+
+  return (
+    <PivotNativeCanvas width={W} height={H} background="#1a1a2e" onTouch={handleTouch}>
+      <PivotNativeCamera position={cam.current}>
+        {/* Platforms */}
+        {PLATFORMS.map((plat, i) => (
+          <PivotPlatform
+            key={i}
+            position={{ x: plat.x, y: plat.y }}
+            width={plat.w}
+            height={plat.h}
+            fill="#4a7c59"
+          />
+        ))}
+
+        {/* Coins */}
+        {coins.current.map((c, i) => (
+          <PivotCircle key={i} center={{ x: c.x, y: c.y }} radius={8} fill="gold" />
+        ))}
+
+        {/* Player */}
+        <PivotRectangle
+          position={{ x: p.x, y: p.y }}
+          width={PLAYER_W}
+          height={PLAYER_H}
+          fill="#e94560"
+          stroke="white"
+          lineWidth={1}
+        />
+      </PivotNativeCamera>
+
+      {/* HUD (screen space) */}
+      <PivotLabel
+        text={`Score: ${score.current}`}
+        position={{ x: 10, y: 20 }}
+        font="bold 16px Arial"
+        fill="white"
+        textAlign="left"
+      />
+      <PivotLabel
+        text={Platform.OS === 'web' ? 'Arrow keys / WASD' : 'Tap left/right to move, top to jump'}
+        position={{ x: W / 2, y: H - 12 }}
+        font="12px Arial"
+        fill="rgba(255,255,255,0.4)"
+      />
+    </PivotNativeCanvas>
+  );
+}
+```
+
+**How it works:**
+
+1. **Platform detection** — `Platform.OS` from React Native selects touch zones (mobile) or keyboard listeners (web). Both feed the same `input` ref.
+2. **Game loop** — `useNativeGameLoop` runs 60fps. Gravity, movement, and collision happen every frame using delta time.
+3. **Collision** — `createAABB` and `aabbOverlapDepth` from the core physics module work in React Native too. They resolve overlaps by pushing along the smallest axis.
+4. **Camera** — `PivotNativeCamera` wraps world-space shapes. The HUD labels sit outside the camera, so they stay fixed on screen.
+5. **Coins** — simple circle-to-rect distance check. Collected coins are filtered out each frame.
+6. **Cross-platform** — this exact code runs on iOS, Android, and Expo Web with no changes.

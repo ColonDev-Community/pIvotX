@@ -25,6 +25,7 @@ export class Canvas {
     }
     this._ctx   = ctx;
     this._valid = true;
+    // eslint-disable-next-line no-console
     console.log(`pIvotX: Canvas ready — #${id}`);
   }
 
