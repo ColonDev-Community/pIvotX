@@ -27,24 +27,31 @@ import { generateHTML } from './bridge/html-template';
 import { NativeDrawContext } from './context/NativeDrawContext';
 import type {
   DrawCommand,
+  AudioCommand,
   PivotNativeCanvasProps,
   PivotNativeCanvasHandle,
 } from './bridge/types';
 
 // Web-only: direct canvas command executor (tree-shaken on native)
-import { executeCommands } from './web/executeCommands';
+import { executeCommands, executeAudioCommands } from './web/executeCommands';
 
 // ─── Shared command collection logic ─────────────────────────────────────────
 
 function useCommandCollection() {
   const commandsRef = useRef<DrawCommand[]>([]);
+  const audioCommandsRef = useRef<AudioCommand[]>([]);
   const cameraRef = useRef({ x: 0, y: 0 });
 
-  // Reset commands at the start of each render so children register fresh.
+  // Reset draw commands at the start of each render so children register fresh.
   commandsRef.current = [];
+  // Audio commands are NOT reset per frame — they accumulate and are flushed once.
 
   const registerCommand = useCallback((cmd: DrawCommand) => {
     commandsRef.current.push(cmd);
+  }, []);
+
+  const registerAudioCommand = useCallback((cmd: AudioCommand) => {
+    audioCommandsRef.current.push(cmd);
   }, []);
 
   const setCameraPosition = useCallback((pos: { x: number; y: number }) => {
@@ -52,11 +59,11 @@ function useCommandCollection() {
   }, []);
 
   const contextValue = useMemo(
-    () => ({ registerCommand, cameraPosition: cameraRef.current, setCameraPosition }),
-    [registerCommand, setCameraPosition],
+    () => ({ registerCommand, registerAudioCommand, cameraPosition: cameraRef.current, setCameraPosition }),
+    [registerCommand, registerAudioCommand, setCameraPosition],
   );
 
-  return { commandsRef, cameraRef, contextValue };
+  return { commandsRef, audioCommandsRef, cameraRef, contextValue };
 }
 
 // ─── Web implementation ──────────────────────────────────────────────────────
@@ -70,7 +77,7 @@ const WebCanvas = forwardRef<
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
-  const { commandsRef, cameraRef, contextValue } = useCommandCollection();
+  const { commandsRef, audioCommandsRef, cameraRef, contextValue } = useCommandCollection();
 
   // ── Init canvas context ────────────────────────────────────────────────
 
@@ -99,6 +106,13 @@ const WebCanvas = forwardRef<
     const cmds = commandsRef.current;
     const frame: DrawCommand[] = [{ type: 'clear' }, ...cmds];
     executeCommands(frame, ctx, el);
+
+    // Flush audio commands (one-shot, then clear)
+    const audioCmds = audioCommandsRef.current;
+    if (audioCmds.length > 0) {
+      executeAudioCommands(audioCmds);
+      audioCommandsRef.current = [];
+    }
   });
 
   // ── Touch event forwarding ─────────────────────────────────────────────
@@ -215,7 +229,7 @@ const NativeWebViewCanvas = forwardRef<
   ref,
 ) {
   const webViewRef = useRef<WebView>(null);
-  const { commandsRef, cameraRef, contextValue } = useCommandCollection();
+  const { commandsRef, audioCommandsRef, cameraRef, contextValue } = useCommandCollection();
 
   // ── Imperative handle ──────────────────────────────────────────────────
 
@@ -232,14 +246,25 @@ const NativeWebViewCanvas = forwardRef<
 
   useEffect(() => {
     const cmds = commandsRef.current;
-    if (cmds.length === 0) return;
+    if (cmds.length === 0 && audioCommandsRef.current.length === 0) return;
 
-    const frame: DrawCommand[] = [{ type: 'clear' }, ...cmds];
-    const json = JSON.stringify(frame);
+    if (cmds.length > 0) {
+      const frame: DrawCommand[] = [{ type: 'clear' }, ...cmds];
+      const json = JSON.stringify(frame);
+      webViewRef.current?.injectJavaScript(
+        `window.__pivotDraw(${json}); true;`,
+      );
+    }
 
-    webViewRef.current?.injectJavaScript(
-      `window.__pivotDraw(${json}); true;`,
-    );
+    // Flush audio commands (one-shot, then clear)
+    const audioCmds = audioCommandsRef.current;
+    if (audioCmds.length > 0) {
+      const audioJson = JSON.stringify(audioCmds);
+      webViewRef.current?.injectJavaScript(
+        `window.__pivotAudio(${audioJson}); true;`,
+      );
+      audioCommandsRef.current = [];
+    }
   });
 
   // ── WebView message handler ────────────────────────────────────────────

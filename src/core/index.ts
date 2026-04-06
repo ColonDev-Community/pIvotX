@@ -16,7 +16,9 @@ export type { AnimationClip } from './animation/SpriteAnimator';
 
 // ── New: Assets ──────────────────────────────────────────────────────────────
 export { AssetLoader }     from './assets/AssetLoader';
-
+// ── New: Audio ──────────────────────────────────────────────────────────────────
+export { Sound }           from './audio/Sound';
+export { SoundManager }    from './audio/SoundManager';
 // ── New: Camera ──────────────────────────────────────────────────────────────
 export { Camera }          from './camera/Camera';
 

@@ -128,6 +128,72 @@ export interface CameraEndCommand {
   type: 'cameraEnd';
 }
 
+// ── Audio Commands ──────────────────────────────────────────────────────────────
+
+/** Sent from RN → WebView (or executed directly on web) to control audio. */
+export type AudioCommand =
+  | LoadSoundCommand
+  | PlaySoundCommand
+  | StopSoundCommand
+  | PauseSoundCommand
+  | ResumeSoundCommand
+  | StopAllSoundsCommand
+  | SetSoundVolumeCommand
+  | SetMasterVolumeCommand
+  | MuteCommand
+  | UnmuteCommand;
+
+export interface LoadSoundCommand {
+  type:   'loadSound';
+  name:   string;
+  src:    string;
+}
+
+export interface PlaySoundCommand {
+  type:     'playSound';
+  name:     string;
+  loop?:    boolean;
+  volume?:  number;
+}
+
+export interface StopSoundCommand {
+  type: 'stopSound';
+  name: string;
+}
+
+export interface PauseSoundCommand {
+  type: 'pauseSound';
+  name: string;
+}
+
+export interface ResumeSoundCommand {
+  type: 'resumeSound';
+  name: string;
+}
+
+export interface StopAllSoundsCommand {
+  type: 'stopAllSounds';
+}
+
+export interface SetSoundVolumeCommand {
+  type:   'setSoundVolume';
+  name:   string;
+  volume: number;
+}
+
+export interface SetMasterVolumeCommand {
+  type:   'setMasterVolume';
+  volume: number;
+}
+
+export interface MuteCommand {
+  type: 'mute';
+}
+
+export interface UnmuteCommand {
+  type: 'unmute';
+}
+
 // ── Bridge Events ──────────────────────────────────────────────────────────────
 
 /** Sent from WebView → RN to notify about game events. */

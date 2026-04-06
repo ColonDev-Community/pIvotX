@@ -851,6 +851,86 @@ interface CollisionResult {
 
 ---
 
+### Sound & Audio
+
+pIvotX includes a built-in sound engine powered by the Web Audio API for playing sound effects and music.
+
+#### `Sound`
+
+A single sound instance. Can be used standalone or via `SoundManager`.
+
+```ts
+import { Sound } from '@colon-dev/pivotx';
+
+const jumpSfx = await Sound.load('/sfx/jump.mp3');
+jumpSfx.play();
+jumpSfx.volume = 0.5;
+jumpSfx.loop = true;
+jumpSfx.pause();
+jumpSfx.resume();
+jumpSfx.stop();
+```
+
+| Property/Method | Type | Description |
+|---|---|---|
+| `Sound.load(src)` | `Promise<Sound>` | Load a sound from a URL |
+| `Sound.getAudioContext()` | `AudioContext` | Get the shared AudioContext |
+| `.play()` | `void` | Start or restart playback |
+| `.pause()` | `void` | Pause, keeping position |
+| `.resume()` | `void` | Resume from paused position |
+| `.stop()` | `void` | Stop and reset to beginning |
+| `.volume` | `number` | Gain from 0 (silent) to 1 (full) |
+| `.loop` | `boolean` | Whether playback repeats |
+| `.playing` | `boolean` | Whether currently playing |
+| `.duration` | `number` | Duration in seconds |
+
+#### `SoundManager`
+
+Global manager for named sounds, with master volume and mute control.
+
+```ts
+import { SoundManager } from '@colon-dev/pivotx';
+
+// Load sounds (like AssetLoader but for audio)
+await SoundManager.loadSounds({
+  jump:  '/sfx/jump.mp3',
+  coin:  '/sfx/coin.wav',
+  theme: '/music/theme.ogg',
+});
+
+// Play
+SoundManager.play('theme', { loop: true, volume: 0.6 });
+SoundManager.play('jump');
+
+// Control
+SoundManager.stop('theme');
+SoundManager.pause('theme');
+SoundManager.resume('theme');
+SoundManager.stopAll();
+
+// Master volume
+SoundManager.masterVolume = 0.8;
+SoundManager.mute();
+SoundManager.unmute();
+```
+
+| Method | Return | Description |
+|---|---|---|
+| `SoundManager.loadSound(name, src)` | `Promise<Sound>` | Load a single sound |
+| `SoundManager.loadSounds(manifest)` | `Promise<Record<K, Sound>>` | Load multiple sounds in parallel |
+| `SoundManager.getSound(name)` | `Sound \| undefined` | Retrieve a loaded Sound |
+| `SoundManager.play(name, opts?)` | `Sound \| undefined` | Play by name (opts: `loop`, `volume`) |
+| `SoundManager.stop(name)` | `void` | Stop a named sound |
+| `SoundManager.pause(name)` | `void` | Pause a named sound |
+| `SoundManager.resume(name)` | `void` | Resume a named sound |
+| `SoundManager.stopAll()` | `void` | Stop all sounds |
+| `SoundManager.masterVolume` | `number` | Get/set master volume (0 – 1) |
+| `SoundManager.mute()` | `void` | Mute all |
+| `SoundManager.unmute()` | `void` | Unmute all |
+| `SoundManager.muted` | `boolean` | Whether currently muted |
+
+---
+
 ### React Components
 
 #### `<PivotCanvas>`
@@ -974,6 +1054,29 @@ useGameLoop((dt: number) => {
 });
 ```
 
+#### `useSound()`
+
+React convenience hook for controlling sounds via `SoundManager`.
+
+```tsx
+import { useSound, SoundManager } from '@colon-dev/pivotx/react';
+
+// Load sounds once (e.g. in a useEffect)
+useEffect(() => {
+  SoundManager.loadSounds({ jump: '/sfx/jump.mp3', bgm: '/music/theme.mp3' });
+}, []);
+
+const sound = useSound();
+
+// In your game loop or event handler:
+sound.play('jump');
+sound.play('bgm', { loop: true, volume: 0.5 });
+sound.stop('bgm');
+sound.setMasterVolume(0.8);
+sound.mute();
+sound.unmute();
+```
+
 ---
 
 ### React Native / Expo Components
@@ -1032,6 +1135,34 @@ Same pattern as `useGameLoop` — runs an rAF loop for driving state updates.
 #### `useNativePostMessage(canvasRef, handlers?)`
 
 Bidirectional messaging between RN and the WebView game. `handlers` maps event names to callbacks.
+
+#### `useNativeSound()`
+
+Audio control hook for React Native — must be called inside `<PivotNativeCanvas>`. Works identically on both native (WebView) and web (Expo Web).
+
+```tsx
+import { PivotNativeCanvas, useNativeSound } from '@colon-dev/pivotx/react-native';
+
+function Game() {
+  const sound = useNativeSound();
+
+  // Load sounds (will execute inside the canvas context)
+  sound.loadSound('jump', '/sfx/jump.mp3');
+
+  // In game logic:
+  sound.play('jump');
+  sound.play('bgm', { loop: true, volume: 0.5 });
+  sound.setMasterVolume(0.8);
+  sound.mute();
+  sound.unmute();
+
+  return (
+    <PivotNativeCanvas width={400} height={300}>
+      ...
+    </PivotNativeCanvas>
+  );
+}
+```
 
 ---
 

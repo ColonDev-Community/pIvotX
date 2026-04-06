@@ -34,13 +34,14 @@ From your first shape to a full animated game, step by step.
 22. [Physics Body — Sub-Stepped Collision](#22-physics-body--sub-stepped-collision)
 23. [Tilemaps — Grid-Based Levels](#23-tilemaps--grid-based-levels)
 24. [Example — Putting It All Together (Platformer)](#24-example--putting-it-all-together-platformer)
-25. [React Native / Expo — Getting Started](#25-react-native--expo--getting-started)
-26. [PivotNativeCanvas — The Root Component](#26-pivotnativecanvas--the-root-component)
-27. [Shape Components in React Native](#27-shape-components-in-react-native)
-28. [useNativeGameLoop — The Animation Loop](#28-usenativegameloop--the-animation-loop)
-29. [PivotNativeCamera — World Scrolling](#29-pivotnativecamera--world-scrolling)
-30. [Touch Input & Keyboard Controls](#30-touch-input--keyboard-controls)
-31. [Example — React Native Platformer](#31-example--react-native-platformer)
+25. [Sound & Audio](#25-sound--audio)
+26. [React Native / Expo — Getting Started](#26-react-native--expo--getting-started)
+27. [PivotNativeCanvas — The Root Component](#27-pivotnativecanvas--the-root-component)
+28. [Shape Components in React Native](#28-shape-components-in-react-native)
+29. [useNativeGameLoop — The Animation Loop](#29-usenativegameloop--the-animation-loop)
+30. [PivotNativeCamera — World Scrolling](#30-pivotnativecamera--world-scrolling)
+31. [Touch Input & Keyboard Controls](#31-touch-input--keyboard-controls)
+32. [Example — React Native Platformer](#32-example--react-native-platformer)
 
 ---
 
@@ -1811,7 +1812,116 @@ main();
 
 ---
 
-## 25. React Native / Expo — Getting Started
+## 25. Sound & Audio
+
+pIvotX includes a built-in sound engine using the Web Audio API. There are two main classes: `Sound` (a single sound instance) and `SoundManager` (a global manager for named sound collections).
+
+### Loading and playing a standalone Sound
+
+```ts
+import { Sound } from '@colon-dev/pivotx';
+
+const jumpSfx = await Sound.load('/sfx/jump.mp3');
+jumpSfx.play();
+```
+
+### Using SoundManager for game audio
+
+`SoundManager` follows the same static-method pattern as `AssetLoader`:
+
+```ts
+import { SoundManager } from '@colon-dev/pivotx';
+
+// Load sounds at startup
+const sounds = await SoundManager.loadSounds({
+  jump:  '/sfx/jump.mp3',
+  coin:  '/sfx/coin.wav',
+  theme: '/music/theme.ogg',
+});
+
+// Play background music
+SoundManager.play('theme', { loop: true, volume: 0.6 });
+```
+
+### Using sound in the game loop
+
+```ts
+import { Canvas, SoundManager, Point, Circle } from '@colon-dev/pivotx';
+
+const canvas = new Canvas('game');
+
+await SoundManager.loadSounds({
+  jump: '/sfx/jump.mp3',
+  bgm:  '/music/theme.ogg',
+});
+
+SoundManager.play('bgm', { loop: true, volume: 0.4 });
+
+const keys: Record<string, boolean> = {};
+window.addEventListener('keydown', (e) => { keys[e.key] = true; });
+window.addEventListener('keyup',   (e) => { keys[e.key] = false; });
+
+let playerY = 300;
+let vy = 0;
+let grounded = true;
+
+canvas.startLoop((dt) => {
+  canvas.clear();
+
+  if (keys[' '] && grounded) {
+    vy = -400;
+    grounded = false;
+    SoundManager.play('jump');       // play SFX on jump
+  }
+
+  vy += 800 * dt;
+  playerY += vy * dt;
+  if (playerY >= 300) { playerY = 300; vy = 0; grounded = true; }
+
+  const player = new Circle(Point(200, playerY), 16);
+  player.fillColor = 'dodgerblue';
+  canvas.add(player);
+});
+```
+
+### Sound properties
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `volume` | `number` | `1` | Gain from 0 (silent) to 1 (full) |
+| `loop` | `boolean` | `false` | Whether playback repeats |
+| `playing` | `boolean` | — | Whether currently playing (read-only) |
+| `duration` | `number` | — | Duration in seconds (read-only) |
+
+### Playback methods
+
+| Method | Description |
+|---|---|
+| `play()` | Start or restart playback from the beginning |
+| `pause()` | Pause, keeping current position |
+| `resume()` | Resume from paused position |
+| `stop()` | Stop and reset to beginning |
+
+### SoundManager methods
+
+| Method | Description |
+|---|---|
+| `loadSound(name, src)` | Load a single sound and store under `name` |
+| `loadSounds(manifest)` | Load multiple sounds in parallel |
+| `getSound(name)` | Retrieve a loaded Sound instance |
+| `play(name, opts?)` | Play by name. `opts`: `{ loop?, volume? }` |
+| `stop(name)` / `pause(name)` / `resume(name)` | Control individual sounds |
+| `stopAll()` | Stop all sounds at once |
+| `masterVolume` | Get/set master volume (0 – 1) |
+| `mute()` / `unmute()` / `muted` | Mute/unmute all managed sounds |
+
+### Mobile autoplay policy
+
+Mobile browsers require a user gesture before audio can play. The `Sound` class automatically calls `AudioContext.resume()` on the first `play()` call, so audio will start as soon as the user taps the screen. For best results, load sounds early and trigger the first `play()` from a touch event handler.
+
+---
+
+## 26. React Native / Expo — Getting Started
 
 Everything you've learned so far (shapes, sprites, cameras, physics) works on mobile too. The `pivotx/react-native` entry point provides JSX components that mirror the web React layer, plus hooks for game loops and touch input.
 
@@ -1852,7 +1962,7 @@ This renders a red circle with a label — identical output on iOS, Android, and
 
 ---
 
-## 26. PivotNativeCanvas — The Root Component
+## 27. PivotNativeCanvas — The Root Component
 
 `PivotNativeCanvas` is the root container for all native shape components. It replaces both `Canvas` (core) and `PivotCanvas` (React) when building for React Native / Expo.
 
@@ -1912,7 +2022,7 @@ JSX mode is recommended for most games. Script mode is useful when you want to r
 
 ---
 
-## 27. Shape Components in React Native
+## 28. Shape Components in React Native
 
 Every core shape has a matching native component. They work just like the React web components, with one important difference: **image-based components use `src: string` (URL) instead of `HTMLImageElement` or `SpriteSheet`**, because `HTMLImageElement` doesn't exist in React Native.
 
@@ -2016,7 +2126,7 @@ import { PivotTiledBackground } from '@colon-dev/pivotx/react-native';
 
 ---
 
-## 28. useNativeGameLoop — The Animation Loop
+## 29. useNativeGameLoop — The Animation Loop
 
 `useNativeGameLoop` is the React Native equivalent of `useGameLoop`. It runs a `requestAnimationFrame` loop for the lifetime of the component.
 
@@ -2084,7 +2194,7 @@ The `tick(n => n + 1)` pattern triggers a React re-render each frame so the shap
 
 ---
 
-## 29. PivotNativeCamera — World Scrolling
+## 30. PivotNativeCamera — World Scrolling
 
 `PivotNativeCamera` wraps shapes in a camera transform. Shapes inside the camera move with the world; shapes outside stay fixed on screen (perfect for HUD elements).
 
@@ -2148,7 +2258,7 @@ useNativeGameLoop((dt) => {
 
 ---
 
-## 30. Touch Input & Keyboard Controls
+## 31. Touch Input & Keyboard Controls
 
 ### Touch input (mobile)
 
@@ -2269,7 +2379,7 @@ useNativeGameLoop((dt) => {
 
 ---
 
-## 31. Example — React Native Platformer
+## 32. Example — React Native Platformer
 
 A complete mini-platformer using the React Native components. This example uses JSX mode with `useNativeGameLoop`, camera follow, platform collision, and touch + keyboard input.
 

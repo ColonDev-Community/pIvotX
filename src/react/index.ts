@@ -25,6 +25,12 @@ export type {
 } from './components/shapes';
 
 export { useGameLoop }   from './hooks/useGameLoop';
+export { useSound }      from './hooks/useSound';
+export type { UseSoundControls } from './hooks/useSound';
+
+// Re-export core audio classes
+export { Sound }         from '../core/audio/Sound';
+export { SoundManager }  from '../core/audio/SoundManager';
 
 // Re-export core types that React users commonly need
 export type { IPoint, CSSColor, LoopCallback, AABB } from '../core/types';

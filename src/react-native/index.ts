@@ -41,6 +41,12 @@ export type { PivotNativeCameraProps } from './components/NativeCamera';
 // Hooks
 export { useNativeGameLoop }    from './hooks/useNativeGameLoop';
 export { useNativePostMessage } from './hooks/useNativePostMessage';
+export { useNativeSound }       from './hooks/useNativeSound';
+export type { UseNativeSoundControls } from './hooks/useNativeSound';
+
+// Re-export core audio classes
+export { Sound }         from '../core/audio/Sound';
+export { SoundManager }  from '../core/audio/SoundManager';
 
 // Re-export core types that RN users commonly need
 export type { IPoint, CSSColor, LoopCallback, AABB } from '../core/types';

@@ -5,11 +5,13 @@
 //
 
 import { createContext, useContext } from 'react';
-import type { DrawCommand } from '../bridge/types';
+import type { DrawCommand, AudioCommand } from '../bridge/types';
 
 export interface NativeDrawContextValue {
   /** Register a draw command for the current frame. */
   registerCommand(cmd: DrawCommand): void;
+  /** Register an audio command (fire-and-forget, sent once then cleared). */
+  registerAudioCommand(cmd: AudioCommand): void;
   /** Current camera position (updated by PivotNativeCamera). */
   cameraPosition: { x: number; y: number };
   /** Update the camera position (called by PivotNativeCamera). */

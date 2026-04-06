@@ -34,17 +34,21 @@ src/core/                ← framework-agnostic, no React dependency
   physics/
     collision.ts         ← aabbOverlap, aabbOverlapDepth, createAABB
     body.ts              ← stepBody, resolveCollisions (sub-stepped integrator)
+  audio/
+    Sound.ts             ← Web Audio API wrapper: load, play, pause, resume, stop
+    SoundManager.ts      ← global named-sound manager with master volume & mute
 src/react/               ← thin React wrapper, imports core classes internally
   PivotCanvas.tsx        ← root component, provides CanvasRenderingContext2D via context
   components/shapes.tsx  ← each component instantiates a core shape in useEffect
   hooks/useGameLoop.ts   ← rAF loop hook using callback-ref pattern
+  hooks/useSound.ts      ← React convenience hook wrapping SoundManager
 src/react-native/        ← React Native / Expo bridge via WebView
   env.d.ts               ← type stubs for react-native-webview (dev build only)
   PivotNativeCanvas.tsx  ← root component: WebView on native, <canvas> on web (Platform.OS check)
   web/
     executeCommands.ts   ← direct CanvasRenderingContext2D command executor (web fallback)
   bridge/
-    types.ts             ← DrawCommand union (12 types), BridgeEvent, component props
+    types.ts             ← DrawCommand union (12 types), AudioCommand union (10 types), BridgeEvent, component props
     renderer.ts          ← getBridgeRendererSource() — JS string that runs inside WebView
     html-template.ts     ← generateHTML() — full HTML page with canvas + UMD + bridge
   context/
@@ -55,6 +59,7 @@ src/react-native/        ← React Native / Expo bridge via WebView
   hooks/
     useNativeGameLoop.ts ← rAF loop hook (same pattern as web useGameLoop)
     useNativePostMessage.ts ← bidirectional RN ↔ WebView messaging helper
+    useNativeSound.ts    ← platform-agnostic audio hook using AudioCommand bridge
   index.ts               ← public API exports
 ```
 
@@ -91,6 +96,9 @@ src/react-native/        ← React Native / Expo bridge via WebView
 - **`Camera.begin(ctx)`/`end(ctx)` wrap world drawing.** HUD is drawn after `end()`.
 - **`Platform.bounds`** returns an `AABB` compatible with `aabbOverlap()`.
 - **`Tilemap` uses `getTileAt()` + `solidTiles` Set + `isSolidAt()` for collision.**
+- **`Sound` uses Web Audio API** (`AudioContext`, `AudioBuffer`, `AudioBufferSourceNode`). A shared `AudioContext` is created lazily via `Sound.getAudioContext()`.
+- **`SoundManager` routes through a master `GainNode`** so `masterVolume`, `mute()`, `unmute()` affect all managed sounds at once.
+- **`SoundManager` follows the `AssetLoader` pattern** — all static methods, batch loading via `loadSounds(manifest)`.
 - TypeScript is strict (`"strict": true`). Target ES2017 with DOM lib.
 
 ## Build & development
@@ -150,6 +158,14 @@ const platforms: StaticRect[] = [{ x: 0, y: 350, w: 600, h: 50 }];
 // hits[n].side === 'top' | 'bottom' | 'left' | 'right'
 ```
 
+## Sound loading pattern
+
+```ts
+await SoundManager.loadSounds({ jump: '/sfx/jump.mp3', bgm: '/music/theme.ogg' });
+SoundManager.play('bgm', { loop: true, volume: 0.6 });
+// In loop on event: SoundManager.play('jump');
+```
+
 ## Expo / React Native web compatibility
 
 `PivotNativeCanvas` uses `Platform.OS === 'web'` to switch between two rendering paths:
@@ -157,7 +173,7 @@ const platforms: StaticRect[] = [{ x: 0, y: 350, w: 600, h: 50 }];
 - **Native (iOS / Android):** renders a `<WebView>` running the pIvotX UMD bundle + bridge renderer (`renderer.ts`). Draw commands are JSON-serialized and injected via `injectJavaScript`.
 - **Web (Expo Web / react-native-web):** renders a plain `<canvas>` element directly. Draw commands are executed synchronously by `executeCommands()` in `src/react-native/web/executeCommands.ts`.
 
-Both paths share the same `NativeDrawContext` so all child shape components (`PivotCircle`, `PivotSprite`, etc.) work identically on every platform without code changes.
+Both paths share the same `NativeDrawContext` so all child shape components (`PivotCircle`, `PivotSprite`, etc.) work identically on every platform without code changes. Audio commands follow the same pattern via `registerAudioCommand` — executed directly on web, serialised to `__pivotAudio` on native.
 
 ### Rules for Expo compatibility
 

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>pIvotX — Sound Engine Demo</title>
+  <style>
+    body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #1a1a2e; }
+    canvas { border: 2px solid #444; }
+    #info { position: fixed; top: 10px; left: 10px; color: #ccc; font: 14px monospace; }
+  </style>
+</head>
+<body>
+  <div id="info">
+    Click canvas to unlock audio • Space = jump (SFX) • M = mute/unmute<br/>
+    ↑/↓ = master volume
+  </div>
+  <canvas id="game" width="600" height="400"></canvas>
+
+  <!-- Load pIvotX from the UMD bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/@colon-dev/pivotx/dist/pivotx.umd.min.js"></script>
+
+  <script>
+    const { Canvas, Point, Circle, Rectangle, Label, SoundManager } = PivotX;
+
+    const canvas = new Canvas('game');
+    let audioReady = false;
+
+    // ── Synthesise simple sounds using Web Audio API ──────────────────────
+    // (In a real game you'd load .mp3/.ogg files via SoundManager.loadSounds)
+
+    const audioCtx = PivotX.Sound.getAudioContext();
+
+    function createToneBuffer(freq, duration, type) {
+      const sampleRate = audioCtx.sampleRate;
+      const length = sampleRate * duration;
+      const buffer = audioCtx.createBuffer(1, length, sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < length; i++) {
+        const t = i / sampleRate;
+        const envelope = Math.max(0, 1 - t / duration);
+        let sample;
+        if (type === 'sine') sample = Math.sin(2 * Math.PI * freq * t);
+        else if (type === 'square') sample = Math.sin(2 * Math.PI * freq * t) > 0 ? 1 : -1;
+        else sample = (2 * (freq * t % 1) - 1); // sawtooth
+        data[i] = sample * envelope * 0.3;
+      }
+      return buffer;
+    }
+
+    // Register synthesised sounds with SoundManager
+    const jumpBuf = createToneBuffer(440, 0.15, 'sine');
+    const landBuf = createToneBuffer(220, 0.1, 'square');
+    const bgmBuf  = createToneBuffer(330, 2.0, 'sawtooth');
+
+    // Create Sound instances and register them
+    const masterGain = audioCtx.createGain();
+    masterGain.connect(audioCtx.destination);
+
+    // We use the internal Sound constructor: new Sound(buffer, ctx, destination)
+    const jumpSound = new PivotX.Sound(jumpBuf, audioCtx, masterGain);
+    const landSound = new PivotX.Sound(landBuf, audioCtx, masterGain);
+    const bgmSound  = new PivotX.Sound(bgmBuf, audioCtx, masterGain);
+
+    // Register them in SoundManager manually via loadSound-like pattern
+    // For this demo we'll use the sounds directly
+
+    // ── Game state ───────────────────────────────────────────────────────
+
+    let playerY = 300;
+    let vy = 0;
+    let grounded = true;
+    let muted = false;
+    let masterVol = 1.0;
+
+    const keys = {};
+    window.addEventListener('keydown', (e) => {
+      keys[e.key] = true;
+
+      // Unlock audio on first interaction
+      if (!audioReady && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+        audioReady = true;
+        bgmSound.loop = true;
+        bgmSound.volume = 0.3;
+        bgmSound.play();
+      }
+
+      if (e.key === 'm' || e.key === 'M') {
+        muted = !muted;
+        masterGain.gain.value = muted ? 0 : masterVol;
+      }
+      if (e.key === 'ArrowUp') {
+        masterVol = Math.min(1, masterVol + 0.1);
+        if (!muted) masterGain.gain.value = masterVol;
+      }
+      if (e.key === 'ArrowDown') {
+        masterVol = Math.max(0, masterVol - 0.1);
+        if (!muted) masterGain.gain.value = masterVol;
+      }
+    });
+    window.addEventListener('keyup', (e) => { keys[e.key] = false; });
+
+    // Unlock audio on canvas click too
+    document.getElementById('game').addEventListener('click', () => {
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+        audioReady = true;
+        bgmSound.loop = true;
+        bgmSound.volume = 0.3;
+        bgmSound.play();
+      }
+    });
+
+    // ── Game loop ────────────────────────────────────────────────────────
+
+    canvas.startLoop((dt) => {
+      canvas.clear();
+
+      // Jump
+      if (keys[' '] && grounded) {
+        vy = -500;
+        grounded = false;
+        jumpSound.play();
+      }
+
+      // Gravity
+      vy += 1200 * dt;
+      playerY += vy * dt;
+
+      // Ground collision
+      if (playerY >= 300) {
+        if (!grounded) landSound.play();
+        playerY = 300;
+        vy = 0;
+        grounded = true;
+      }
+
+      // Draw ground
+      const ground = new Rectangle(Point(0, 340), 600, 60);
+      ground.fillColor = '#4a7c59';
+      canvas.add(ground);
+
+      // Draw player
+      const player = new Circle(Point(300, playerY), 20);
+      player.fillColor = 'dodgerblue';
+      player.strokeColor = '#fff';
+      player.lineWidth = 2;
+      canvas.add(player);
+
+      // Draw HUD
+      const volLabel = new Label(
+        `Volume: ${Math.round(masterVol * 100)}%${muted ? ' (MUTED)' : ''}`,
+        Point(300, 380),
+        '14px monospace'
+      );
+      volLabel.fillColor = '#aaa';
+      canvas.add(volLabel);
+
+      const statusLabel = new Label(
+        audioReady ? 'Audio: ON' : 'Audio: Click/press key to unlock',
+        Point(300, 20),
+        '12px monospace'
+      );
+      statusLabel.fillColor = audioReady ? '#6f6' : '#f66';
+      canvas.add(statusLabel);
+    });
+  </script>
+</body>
+</html>

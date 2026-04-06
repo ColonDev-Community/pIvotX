@@ -5,7 +5,8 @@
  * in the browser — no WebView needed.
  */
 
-import type { DrawCommand } from '../bridge/types';
+import type { DrawCommand, AudioCommand } from '../bridge/types';
+import { SoundManager } from '../../core/audio/SoundManager';
 
 // ── Image cache ──────────────────────────────────────────────────────────────
 
@@ -244,6 +245,33 @@ export function executeCommands(
       case 'tiledBackground': execTiledBackground(ctx, cmd); break;
       case 'cameraBegin':     execCameraBegin(ctx, cmd); break;
       case 'cameraEnd':       execCameraEnd(ctx); break;
+    }
+  }
+}
+
+// ── Audio Commands ───────────────────────────────────────────────────────────
+
+/**
+ * Execute an array of audio commands using SoundManager.
+ * This is the web-platform audio equivalent — no WebView needed.
+ */
+export function executeAudioCommands(commands: AudioCommand[]): void {
+  for (const cmd of commands) {
+    switch (cmd.type) {
+      case 'loadSound':       SoundManager.loadSound(cmd.name, cmd.src); break;
+      case 'playSound':       SoundManager.play(cmd.name, { loop: cmd.loop, volume: cmd.volume }); break;
+      case 'stopSound':       SoundManager.stop(cmd.name); break;
+      case 'pauseSound':      SoundManager.pause(cmd.name); break;
+      case 'resumeSound':     SoundManager.resume(cmd.name); break;
+      case 'stopAllSounds':   SoundManager.stopAll(); break;
+      case 'setSoundVolume': {
+        const s = SoundManager.getSound(cmd.name);
+        if (s) s.volume = cmd.volume;
+        break;
+      }
+      case 'setMasterVolume': SoundManager.masterVolume = cmd.volume; break;
+      case 'mute':            SoundManager.mute(); break;
+      case 'unmute':          SoundManager.unmute(); break;
     }
   }
 }

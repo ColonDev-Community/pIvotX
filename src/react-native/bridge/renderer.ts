@@ -288,6 +288,53 @@ export function getBridgeRendererSource(): string {
     }
   };
 
+  // ── Audio command handler ──────────────────────────────────────────────
+
+  /**
+   * Process audio commands sent from RN in JSX mode.
+   * Uses PivotX.SoundManager from the UMD bundle loaded in the WebView.
+   */
+  window.__pivotAudio = function(commands) {
+    var SM = window.PivotX && window.PivotX.SoundManager;
+    if (!SM) return;
+    for (var i = 0; i < commands.length; i++) {
+      var cmd = commands[i];
+      switch (cmd.type) {
+        case 'loadSound':
+          SM.loadSound(cmd.name, cmd.src);
+          break;
+        case 'playSound':
+          SM.play(cmd.name, { loop: !!cmd.loop, volume: cmd.volume != null ? cmd.volume : 1 });
+          break;
+        case 'stopSound':
+          SM.stop(cmd.name);
+          break;
+        case 'pauseSound':
+          SM.pause(cmd.name);
+          break;
+        case 'resumeSound':
+          SM.resume(cmd.name);
+          break;
+        case 'stopAllSounds':
+          SM.stopAll();
+          break;
+        case 'setSoundVolume':
+          var snd = SM.getSound(cmd.name);
+          if (snd) snd.volume = cmd.volume;
+          break;
+        case 'setMasterVolume':
+          SM.masterVolume = cmd.volume;
+          break;
+        case 'mute':
+          SM.mute();
+          break;
+        case 'unmute':
+          SM.unmute();
+          break;
+      }
+    }
+  };
+
   /**
    * Receive a message from React Native.
    * Available in script mode: window.__pivotOnMessage = function(data) { ... };

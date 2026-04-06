@@ -19,6 +19,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Tilemap** — grid-based tile map rendering from `SpriteSheet` + 2D `mapData`, with `solidTiles`, `isSolidAt()`, `getTileAt()`, `setTileAt()`, `getSolidTilesInRegion()`, and `pixelPerfect`.
 - **Physics — collision** — `createAABB()`, `aabbOverlap()`, `aabbOverlapDepth()` pure functions.
 - **Physics — body** — `stepBody()` sub-stepped integrator with gravity, friction, max-velocity; `resolveCollisions()` discrete resolver. Returns `CollisionHit[]` with side info.
+- **Sound** — Web Audio API wrapper for individual sounds: `play()`, `pause()`, `resume()`, `stop()`, `volume`, `loop`. Static `Sound.load(url)` for standalone use.
+- **SoundManager** — global named-sound manager: `loadSound()`, `loadSounds()`, `play()`, `stop()`, `pause()`, `resume()`, `stopAll()`, `masterVolume`, `mute()`, `unmute()`. Routes all sounds through a master GainNode.
 
 ### Added — React (`pivotx/react`)
 
@@ -27,7 +29,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `<PivotPlatform>` — draws a platform.
 - `<PivotTilemap>` — draws a grid-based tile map.
 - `<PivotTiledBackground>` — draws a repeating tiled background with parallax support.
-- Re-exports of collision & physics utilities for convenience.
+- `useSound()` — React hook wrapping `SoundManager` for convenient audio control.
+- Re-exports of `Sound`, `SoundManager`, collision & physics utilities for convenience.
 
 ### Added — React Native / Expo (`pivotx/react-native`)
 
@@ -40,7 +43,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Touch/input** — supports both touch and mouse events across all platforms.
 - **Bridge renderer** — draws commands serialized as JSON inside WebView via UMD bundle.
 - **Web executor** — `executeCommands()` for Expo Web canvas path.
-- Re-exports of collision & physics utilities.
+- **useNativeSound** — platform-agnostic audio hook for JSX mode. Audio commands flow through the bridge (native) or execute directly via `SoundManager` (web).
+- **Audio command bridge** — 10 `AudioCommand` types (`loadSound`, `playSound`, `stopSound`, `pauseSound`, `resumeSound`, `stopAllSounds`, `setSoundVolume`, `setMasterVolume`, `mute`, `unmute`) handled in both renderers.
+- Re-exports of `Sound`, `SoundManager`, collision & physics utilities.
 
 ### Changed
 
