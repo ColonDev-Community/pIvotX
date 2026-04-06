@@ -17,9 +17,10 @@ import { Line      as CoreLine       } from '../../core/shapes/Line';
 import { Label     as CoreLabel      } from '../../core/shapes/Label';
 import { GameImage as CoreGameImage  } from '../../core/shapes/GameImage';
 import { Sprite    as CoreSprite     } from '../../core/shapes/Sprite';
-import { Platform  as CorePlatform   } from '../../core/shapes/Platform';
-import { Tilemap   as CoreTilemap    } from '../../core/tilemap/Tilemap';
-import type { SpriteSheet }            from '../../core/shapes/Sprite';
+import { Platform        as CorePlatform        } from '../../core/shapes/Platform';
+import { TiledBackground as CoreTiledBackground } from '../../core/shapes/TiledBackground';
+import { Tilemap         as CoreTilemap         } from '../../core/tilemap/Tilemap';
+import type { SpriteSheet }                       from '../../core/shapes/Sprite';
 
 // ── PivotCircle ────────────────────────────────────────────────────────────────
 
@@ -306,6 +307,57 @@ export function PivotTilemap({ sheet, mapData, tileSize, solidTiles, pixelPerfec
     if (solidTiles)    tm.solidTiles   = solidTiles;
     if (pixelPerfect != null) tm.pixelPerfect = pixelPerfect;
     tm.draw(ctx);
+  });
+
+  return null;
+}
+
+// ── PivotTiledBackground ───────────────────────────────────────────────────────
+
+export interface PivotTiledBackgroundProps {
+  /** A fully loaded tile image (use AssetLoader.loadImage). */
+  image:           HTMLImageElement;
+  /** Width of the canvas / viewport. */
+  canvasWidth:     number;
+  /** Height of the canvas / viewport. */
+  canvasHeight:    number;
+  /** Horizontal scroll offset. */
+  scrollX?:        number;
+  /** Vertical scroll offset. */
+  scrollY?:        number;
+  /** Opacity from 0 to 1. */
+  opacity?:        number;
+  /** Parallax speed multiplier (1 = full, 0.5 = half, etc.). */
+  parallaxFactor?: number;
+}
+
+/**
+ * Draws a repeating tiled background on the parent <PivotCanvas>.
+ * Supports parallax scrolling — set `parallaxFactor` to a value less than 1
+ * for distant layers.
+ *
+ * @example
+ * <PivotTiledBackground
+ *   image={skyImg}
+ *   canvasWidth={600}
+ *   canvasHeight={400}
+ *   scrollX={scrollRef.current}
+ *   parallaxFactor={0.3}
+ * />
+ */
+export function PivotTiledBackground({
+  image, canvasWidth, canvasHeight,
+  scrollX = 0, scrollY = 0, opacity, parallaxFactor = 1,
+}: PivotTiledBackgroundProps) {
+  const ctx = useCanvasContext();
+
+  useEffect(() => {
+    if (!ctx) return;
+    const bg = new CoreTiledBackground(image, canvasWidth, canvasHeight);
+    bg.scrollX = scrollX * parallaxFactor;
+    bg.scrollY = scrollY * parallaxFactor;
+    if (opacity != null) bg.opacity = opacity;
+    bg.draw(ctx);
   });
 
   return null;

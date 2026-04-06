@@ -10,6 +10,7 @@ export {
   PivotSprite,
   PivotPlatform,
   PivotTilemap,
+  PivotTiledBackground,
 } from './components/shapes';
 export type {
   PivotCircleProps,
@@ -20,6 +21,7 @@ export type {
   PivotSpriteProps,
   PivotPlatformProps,
   PivotTilemapProps,
+  PivotTiledBackgroundProps,
 } from './components/shapes';
 
 export { useGameLoop }   from './hooks/useGameLoop';

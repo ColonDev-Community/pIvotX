@@ -111,7 +111,7 @@ const gameScript = `
       canvas.add(c);
     }
 
-    var lbl = new Label(Point(200, 20), "Script Mode");
+    var lbl = new Label("Script Mode", Point(200, 20));
     lbl.font = "16px monospace";
     lbl.fillColor = "#ffffff";
     canvas.add(lbl);

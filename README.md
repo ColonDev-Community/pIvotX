@@ -939,6 +939,30 @@ Draws a grid-based tile map.
 <PivotTilemap sheet={tileSheet} mapData={levelData} tileSize={32} />
 ```
 
+#### `<PivotTiledBackground>`
+
+Draws a repeating tiled background with parallax scrolling support.
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `image` | `HTMLImageElement` | — | Pre-loaded tile image (use `AssetLoader.loadImage`) |
+| `canvasWidth` | `number` | — | Viewport width |
+| `canvasHeight` | `number` | — | Viewport height |
+| `scrollX` | `number` | `0` | Horizontal scroll offset |
+| `scrollY` | `number` | `0` | Vertical scroll offset |
+| `opacity` | `number` | `1` | 0–1 opacity |
+| `parallaxFactor` | `number` | `1` | Parallax speed multiplier (0.5 = half speed) |
+
+```tsx
+<PivotTiledBackground
+  image={skyImg}
+  canvasWidth={600}
+  canvasHeight={400}
+  scrollX={scrollRef.current}
+  parallaxFactor={0.3}
+/>
+```
+
 #### `useGameLoop(callback)`
 
 Starts an rAF loop for the lifetime of the component. Stops automatically on unmount.

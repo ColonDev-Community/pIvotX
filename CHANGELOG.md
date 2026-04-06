@@ -5,6 +5,55 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.0.0] — 2025
+
+### Added — Core
+
+- **GameImage** — draw static images from `HTMLImageElement` or URL string (auto-loading). Supports opacity, rotation, and `pixelPerfect` mode.
+- **Sprite & SpriteSheet** — spritesheet frame rendering with `Sprite.createSheet()`, scale, flip, opacity, and `pixelPerfect` (default `true`).
+- **SpriteAnimator** — named animation clips (`addClip`, `play`, `stop`), fps-based frame stepping with `update(dt)`.
+- **AssetLoader** — `loadImage(src)` and `loadAssets(manifest)` for batch preloading before the game loop.
+- **Camera** — viewport transform with `follow()`, `clamp()`, `zoom`, `setZoom(z, duration)`, `worldToScreen()`, `screenToWorld()`, and `begin(ctx)`/`end(ctx)`.
+- **TiledBackground** — repeating tiled image with scroll offsets and opacity for parallax layers.
+- **Platform** — AABB-based rectangular platform with `oneWay` flag and `bounds` getter compatible with collision helpers.
+- **Tilemap** — grid-based tile map rendering from `SpriteSheet` + 2D `mapData`, with `solidTiles`, `isSolidAt()`, `getTileAt()`, `setTileAt()`, `getSolidTilesInRegion()`, and `pixelPerfect`.
+- **Physics — collision** — `createAABB()`, `aabbOverlap()`, `aabbOverlapDepth()` pure functions.
+- **Physics — body** — `stepBody()` sub-stepped integrator with gravity, friction, max-velocity; `resolveCollisions()` discrete resolver. Returns `CollisionHit[]` with side info.
+
+### Added — React (`pivotx/react`)
+
+- `<PivotImage>` — draws `GameImage` on the canvas.
+- `<PivotSprite>` — draws a sprite frame.
+- `<PivotPlatform>` — draws a platform.
+- `<PivotTilemap>` — draws a grid-based tile map.
+- `<PivotTiledBackground>` — draws a repeating tiled background with parallax support.
+- Re-exports of collision & physics utilities for convenience.
+
+### Added — React Native / Expo (`pivotx/react-native`)
+
+- **PivotNativeCanvas** — root component with dual-renderer architecture: `WebView` on native (iOS/Android), direct `<canvas>` on Expo Web (`Platform.OS === 'web'`).
+- **9 shape components**: `PivotCircle`, `PivotRectangle`, `PivotLine`, `PivotLabel`, `PivotImage`, `PivotSprite`, `PivotPlatform`, `PivotTilemap`, `PivotTiledBackground`.
+- **PivotNativeCamera** — camera transform wrapper (begin/end commands around children).
+- **useNativeGameLoop** — rAF loop hook (same pattern as web `useGameLoop`).
+- **useNativePostMessage** — bidirectional React Native ↔ WebView messaging helper.
+- **Script mode** — pass a game code string to `PivotNativeCanvas` `script` prop for imperative games.
+- **Touch/input** — supports both touch and mouse events across all platforms.
+- **Bridge renderer** — draws commands serialized as JSON inside WebView via UMD bundle.
+- **Web executor** — `executeCommands()` for Expo Web canvas path.
+- Re-exports of collision & physics utilities.
+
+### Changed
+
+- Package description updated to include React Native / Expo support.
+- `package.json` exports now include `./react-native` entry point with ESM, CJS, and types.
+- Build produces 11 bundles (was 7 in v1.0.0): 4 core + 2 React + 2 React Native + 3 type declarations.
+
+### Fixed
+
+- `Label` constructor argument order in `expo-example.tsx` (text first, position second).
+
+---
+
 ## [1.0.0] — 2025
 
 ### Added
