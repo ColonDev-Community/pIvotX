@@ -5,7 +5,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [2.0.0] — 2025
+## [2.0.0] — 2026-07-07
 
 ### Added — Core
 
@@ -13,7 +13,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Sprite & SpriteSheet** — spritesheet frame rendering with `Sprite.createSheet()`, scale, flip, opacity, and `pixelPerfect` (default `true`).
 - **SpriteAnimator** — named animation clips (`addClip`, `play`, `stop`), fps-based frame stepping with `update(dt)`.
 - **AssetLoader** — `loadImage(src)` and `loadAssets(manifest)` for batch preloading before the game loop.
-- **Camera** — viewport transform with `follow()` (optionally frame-rate-independent via `dt`), `clamp()`, `zoom`, animated `setZoom(z, duration)`, `shake(intensity, duration)` screen shake, `update(dt)`, `worldToScreen()`, `screenToWorld()`, and `begin(ctx)`/`end(ctx)`.
+- **Camera** — viewport transform with `follow()` (optionally frame-rate-independent via `dt`), `followWithDeadZone()` (classic platformer dead-zone camera), `clamp()`, `zoom`, animated `setZoom(z, duration)`, `shake(intensity, duration)` screen shake, `update(dt)`, `worldToScreen()`, `screenToWorld()`, and `begin(ctx)`/`end(ctx)`.
 - **TiledBackground** — repeating tiled image with scroll offsets and opacity for parallax layers.
 - **Platform** — AABB-based rectangular platform with `oneWay` flag and `bounds` getter compatible with collision helpers.
 - **Tilemap** — grid-based tile map rendering from `SpriteSheet` + 2D `mapData`, with `solidTiles`, `isSolidAt()`, `getTileAt()`, `setTileAt()`, `getSolidTilesInRegion()`, and `pixelPerfect`.
@@ -52,15 +52,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - **Keyboard navigation** — `ui.enableKeyboardNav()`: Tab/arrows move focus, Enter/Space activate, Left/Right adjust a focused slider; dashed focus ring drawn automatically.
 - **Label** — multi-line text support (`\n`) with configurable `lineHeight`, `maxWidth` word-wrapping, and `strokeColor`/`strokeWidth` outline text.
 - **Canvas hiDPI** — `new Canvas(id, { hiDPI: true })` renders at devicePixelRatio for crisp output on Retina screens; coordinates stay logical (`pixelRatio` getter; set it on `UIManager`/`Pointer` to keep input aligned).
-- **`<PivotCanvas autoClear>`** — opt-in clearing before child shapes draw each render, so state-driven shapes no longer smear.
-- **Camera** — `followWithDeadZone(target, w, h, lerp?, dt?)` — classic platformer dead-zone camera.
-- **React hooks** — `useKeyPressed(key)` and `useGamepadConnected()` (reactive input state for menus/HUDs), `useUIManager(canvasRef, setup)` (UIManager bound to a PivotCanvas with automatic attach/detach).
-- **React UI components** — declare canvas UI in JSX: `<PivotUI>` hosts a UIManager inside `<PivotCanvas>` (auto-draws each frame; `manual` prop for explicit draw-order control) with `<PivotButton>`, `<PivotUIText>`, `<PivotProgressBar>`, `<PivotCheckbox>`, `<PivotSlider>`, and `<PivotJoystick>` — props sync to the widgets every render, `widgetRef` exposes the underlying widget for game-loop reads.
 - **Canvas auto-resize** — `canvas.enableAutoResize()` scales the canvas via CSS to fill its parent (aspect-ratio preserved, ResizeObserver-driven); internal resolution and coordinates unchanged. `disableAutoResize()` restores the natural size.
 - **Tests & CI** — 37 unit tests (Node built-in test runner, zero new dependencies) covering physics (incl. moving platforms, SpatialHash, circle resolution, swept casts), Vec2, Timers, Tween, and SceneManager; CI now runs lint + build + tests.
 
 ### Added — React (`pivotx/react`)
 
+- `<PivotCanvas autoClear>` — opt-in clearing before child shapes draw each render, so state-driven shapes no longer smear.
+- **React UI components** — declare canvas UI in JSX: `<PivotUI>` hosts a UIManager inside `<PivotCanvas>` (auto-draws each frame; `manual` prop for explicit draw-order control) with `<PivotButton>`, `<PivotUIText>`, `<PivotProgressBar>`, `<PivotCheckbox>`, `<PivotSlider>`, and `<PivotJoystick>` — props sync to the widgets every render, `widgetRef` exposes the underlying widget for game-loop reads.
+- **React hooks** — `useKeyPressed(key)` and `useGamepadConnected()` (reactive input state for menus/HUDs), `useUIManager(canvasRef, setup)` (UIManager bound to a PivotCanvas with automatic attach/detach).
 - `<PivotImage>` — draws `GameImage` on the canvas.
 - `<PivotSprite>` — draws a sprite frame.
 - `<PivotPlatform>` — draws a platform.
