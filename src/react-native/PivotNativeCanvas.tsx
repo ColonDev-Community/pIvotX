@@ -129,8 +129,14 @@ const WebCanvas = forwardRef<
 
   useImperativeHandle(ref, () => ({
     postMessage() { /* no-op on web */ },
-    injectScript(js: string) {
-      try { new Function(js)(); } catch { /* script mode not fully supported on web */ }
+    injectScript() {
+      // Deliberately unsupported on web: the native implementation delegates
+      // to the WebView's injectJavaScript, but a web equivalent would need
+      // dynamic code execution — a CSP blocker and a supply-chain red flag.
+      // Use JSX mode (or platform checks) for web builds.
+      console.warn(
+        'pIvotX: injectScript targets the native WebView and is a no-op on web — use JSX mode instead.',
+      );
     },
   }));
 

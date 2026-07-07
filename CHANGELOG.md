@@ -13,6 +13,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - JSON injected into the WebView (`__pivotDraw`/`__pivotUI`/`__pivotAudio`) now escapes U+2028/U+2029, which are valid in JSON strings but line terminators in JavaScript source on older engines.
 - WebView policies are now configurable props with unchanged defaults: `allowFileAccess` (default `true`), `mixedContentMode` (default `'always'`), `originWhitelist` (default `['*']`) — tighten them for production builds.
 - README security note documenting the trust model of `script` mode / `injectScript()` (same class as `react-native-webview`'s `injectJavaScript`: only run code you control).
+- Removed the only dynamic-execution site in the library: `injectScript()`'s web fallback used `new Function` (flagged by supply-chain scanners, blocked by CSP without `unsafe-eval`, and documented as "not fully supported" anyway). It now warns and no-ops on web; the native WebView path is unchanged.
 
 ---
 
