@@ -1,0 +1,330 @@
+// ─── React Native Bridge Types ─────────────────────────────────────────────────
+
+import type { IPoint, CSSColor } from '../../core/types';
+
+// ── Draw Commands ──────────────────────────────────────────────────────────────
+
+/** Sent from RN → WebView to draw shapes on the canvas. */
+export type DrawCommand =
+  | ClearCommand
+  | CircleCommand
+  | RectangleCommand
+  | LineCommand
+  | LabelCommand
+  | ImageCommand
+  | SpriteCommand
+  | PlatformCommand
+  | TilemapCommand
+  | TiledBackgroundCommand
+  | CameraBeginCommand
+  | CameraEndCommand;
+
+export interface ClearCommand {
+  type: 'clear';
+}
+
+export interface CircleCommand {
+  type:       'circle';
+  center:     IPoint;
+  radius:     number;
+  fill?:      CSSColor | null;
+  stroke?:    CSSColor | null;
+  lineWidth?: number;
+}
+
+export interface RectangleCommand {
+  type:       'rectangle';
+  position:   IPoint;
+  width:      number;
+  height:     number;
+  fill?:      CSSColor | null;
+  stroke?:    CSSColor | null;
+  lineWidth?: number;
+}
+
+export interface LineCommand {
+  type:       'line';
+  start:      IPoint;
+  end:        IPoint;
+  stroke?:    CSSColor | null;
+  lineWidth?: number;
+}
+
+export interface LabelCommand {
+  type:          'label';
+  text:          string;
+  position:      IPoint;
+  font?:         string;
+  fill?:         CSSColor | null;
+  textAlign?:    'left' | 'center' | 'right';
+  textBaseline?: 'top' | 'middle' | 'bottom';
+}
+
+export interface ImageCommand {
+  type:          'image';
+  src:           string;
+  position:      IPoint;
+  width?:        number | null;
+  height?:       number | null;
+  opacity?:      number;
+  rotation?:     number;
+  pixelPerfect?: boolean;
+}
+
+export interface SpriteCommand {
+  type:          'sprite';
+  sheetSrc:      string;
+  frameWidth:    number;
+  frameHeight:   number;
+  position:      IPoint;
+  frame:         number;
+  scale?:        number;
+  flipX?:        boolean;
+  flipY?:        boolean;
+  opacity?:      number;
+  pixelPerfect?: boolean;
+}
+
+export interface PlatformCommand {
+  type:       'platform';
+  position:   IPoint;
+  width:      number;
+  height:     number;
+  fill?:      CSSColor | null;
+  stroke?:    CSSColor | null;
+  lineWidth?: number;
+  oneWay?:    boolean;
+}
+
+export interface TilemapCommand {
+  type:          'tilemap';
+  sheetSrc:      string;
+  frameWidth:    number;
+  frameHeight:   number;
+  mapData:       number[][];
+  tileSize:      number;
+  solidTiles?:   number[];
+  pixelPerfect?: boolean;
+}
+
+export interface TiledBackgroundCommand {
+  type:            'tiledBackground';
+  src:             string;
+  canvasWidth:     number;
+  canvasHeight:    number;
+  scrollX?:        number;
+  scrollY?:        number;
+  opacity?:        number;
+  parallaxFactor?: number;
+}
+
+export interface CameraBeginCommand {
+  type:     'cameraBegin';
+  position: IPoint;
+  zoom:     number;
+}
+
+export interface CameraEndCommand {
+  type: 'cameraEnd';
+}
+
+// ── Audio Commands ──────────────────────────────────────────────────────────────
+
+/** Sent from RN → WebView (or executed directly on web) to control audio. */
+export type AudioCommand =
+  | LoadSoundCommand
+  | PlaySoundCommand
+  | PlayOneShotCommand
+  | StopSoundCommand
+  | PauseSoundCommand
+  | ResumeSoundCommand
+  | StopAllSoundsCommand
+  | PauseAllSoundsCommand
+  | ResumeAllSoundsCommand
+  | SetSoundVolumeCommand
+  | SetPlaybackRateCommand
+  | FadeSoundCommand
+  | FadeOutSoundCommand
+  | SetMasterVolumeCommand
+  | MuteCommand
+  | UnmuteCommand;
+
+export interface LoadSoundCommand {
+  type:   'loadSound';
+  name:   string;
+  src:    string;
+}
+
+export interface PlaySoundCommand {
+  type:     'playSound';
+  name:     string;
+  loop?:    boolean;
+  volume?:  number;
+}
+
+export interface StopSoundCommand {
+  type: 'stopSound';
+  name: string;
+}
+
+export interface PauseSoundCommand {
+  type: 'pauseSound';
+  name: string;
+}
+
+export interface ResumeSoundCommand {
+  type: 'resumeSound';
+  name: string;
+}
+
+export interface PlayOneShotCommand {
+  type:     'playOneShot';
+  name:     string;
+  volume?:  number;
+}
+
+export interface StopAllSoundsCommand {
+  type: 'stopAllSounds';
+}
+
+export interface PauseAllSoundsCommand {
+  type: 'pauseAllSounds';
+}
+
+export interface ResumeAllSoundsCommand {
+  type: 'resumeAllSounds';
+}
+
+export interface SetPlaybackRateCommand {
+  type: 'setPlaybackRate';
+  name: string;
+  rate: number;
+}
+
+export interface FadeSoundCommand {
+  type:    'fadeSound';
+  name:    string;
+  volume:  number;
+  seconds: number;
+}
+
+export interface FadeOutSoundCommand {
+  type:    'fadeOutSound';
+  name:    string;
+  seconds: number;
+}
+
+export interface SetSoundVolumeCommand {
+  type:   'setSoundVolume';
+  name:   string;
+  volume: number;
+}
+
+export interface SetMasterVolumeCommand {
+  type:   'setMasterVolume';
+  volume: number;
+}
+
+export interface MuteCommand {
+  type: 'mute';
+}
+
+export interface UnmuteCommand {
+  type: 'unmute';
+}
+
+// ── UI Widgets ─────────────────────────────────────────────────────────────────
+
+/** Widget kinds supported by the UI bridge. */
+export type UIWidgetKind =
+  | 'button'
+  | 'text'
+  | 'progress'
+  | 'checkbox'
+  | 'slider'
+  | 'joystick';
+
+/**
+ * Serializable description of one UI widget, sent RN → WebView (native) or
+ * reconciled into a local UIManager (web). Callbacks are NOT part of the
+ * descriptor — they're registered separately and invoked via UIEvent
+ * messages coming back from the renderer.
+ */
+export interface UIWidgetDescriptor {
+  /** Stable unique id (React useId). */
+  id: string;
+  kind: UIWidgetKind;
+  /** Widget props — positions, sizes, text, colours, value, etc. */
+  props: Record<string, unknown>;
+}
+
+/** Callbacks for a widget, keyed by event name. */
+export interface UIWidgetHandlers {
+  /** Button click / checkbox toggle activation. */
+  onClick?: () => void;
+  /** Checkbox (boolean) or slider (number) value change. */
+  onChange?: (value: boolean | number) => void;
+  /** Joystick move — normalized { x, y } while active, {0,0} on release. */
+  onMove?: (value: { x: number; y: number }) => void;
+}
+
+// ── Bridge Events ──────────────────────────────────────────────────────────────
+
+/** Sent from WebView → RN to notify about game events. */
+export type BridgeEvent =
+  | TouchBridgeEvent
+  | GameBridgeEvent
+  | UIBridgeEvent;
+
+export interface UIBridgeEvent {
+  type:   'uiEvent';
+  id:     string;
+  event:  'click' | 'change' | 'move';
+  value?: unknown;
+}
+
+export interface TouchBridgeEvent {
+  type:    'touch';
+  action:  'start' | 'move' | 'end';
+  touches: Array<{ x: number; y: number; id: number }>;
+}
+
+export interface GameBridgeEvent {
+  type:    'gameEvent';
+  name:    string;
+  data?:   unknown;
+}
+
+// ── Component Props ────────────────────────────────────────────────────────────
+
+export interface PivotNativeCanvasProps {
+  /** Canvas width in pixels. */
+  width?:     number;
+  /** Canvas height in pixels. */
+  height?:    number;
+  /** Background CSS colour. */
+  background?: string;
+  /** Optional game code string that runs inside the WebView with full PivotX API. */
+  script?:    string;
+  /** Called when the WebView game emits an event. */
+  onGameEvent?: (name: string, data?: unknown) => void;
+  /** Called on touch events from the canvas. */
+  onTouch?: (action: 'start' | 'move' | 'end', touches: Array<{ x: number; y: number; id: number }>) => void;
+  /**
+   * When true, touch coordinates are transformed from screen-space to world-space
+   * by adding the current camera offset. Useful when you need to know which world
+   * position the user tapped. Default: false (screen-space).
+   */
+  worldSpaceTouch?: boolean;
+  /** React Native ViewStyle. */
+  style?:     Record<string, unknown>;
+  /** Children — PivotNative* shape components. */
+  children?:  React.ReactNode;
+}
+
+export interface PivotNativeCanvasHandle {
+  /** Send a message to the WebView game code. */
+  postMessage(data: unknown): void;
+  /** Inject raw JavaScript into the WebView. */
+  injectScript(js: string): void;
+}

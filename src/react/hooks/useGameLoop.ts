@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { LoopCallback } from '../../core/types';
+import { updateInputs } from '../../core/input/update';
 
 /**
  * Runs a requestAnimationFrame game loop for the lifetime of the component.
@@ -27,9 +28,11 @@ export function useGameLoop(callback: LoopCallback): void {
     let rafId:    number;
 
     const tick = (timestamp: number) => {
-      const dt = lastTime !== null ? (timestamp - lastTime) / 1000 : 0;
+      // Clamp dt so returning from a background tab doesn't teleport objects
+      const dt = lastTime !== null ? Math.min((timestamp - lastTime) / 1000, 0.1) : 0;
       lastTime = timestamp;
       callbackRef.current(dt);
+      updateInputs();
       rafId = requestAnimationFrame(tick);
     };
 

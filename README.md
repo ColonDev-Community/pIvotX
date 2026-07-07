@@ -1,6 +1,6 @@
 # pIvotX
 
-Lightweight 2D game development library. One package, three ways to use it.
+Lightweight 2D game development library. One package, four ways to use it.
 
 [🌐 Website](https://pivotx.colondev.com/) · [🎮 Sample Games & Tutorials](https://pivotx.colondev.com/tutorials) · [📖 Guide](./GUIDE.md) · [📦 npm](https://www.npmjs.com/package/@colon-dev/pivotx) · [🐙 GitHub](https://github.com/ColonDev-Community/pIvotX)
 
@@ -9,6 +9,7 @@ Lightweight 2D game development library. One package, three ways to use it.
 | Vanilla JS | `<script src="cdn">` → `window.PivotX` | No |
 | TypeScript | `import { Canvas } from '@colon-dev/pivotx'` | Yes (your project) |
 | React | `import { PivotCanvas } from '@colon-dev/pivotx/react'` | Yes (your project) |
+| React Native / Expo | `import { PivotNativeCanvas } from '@colon-dev/pivotx/react-native'` | Yes (Expo / RN) — iOS, Android & Web |
 
 ---
 
@@ -173,6 +174,120 @@ function BouncingBall() {
 
 ---
 
+### React Native / Expo
+
+Run pIvotX games inside React Native or Expo apps. Works on **iOS, Android, and Expo Web** — same code, every platform.
+
+- **Native (iOS / Android):** renders a `<WebView>` running the pIvotX UMD bundle + bridge renderer. Draw commands are JSON-serialized and injected via `injectJavaScript`.
+- **Web (Expo Web / react-native-web):** renders a plain `<canvas>` element directly — no WebView needed. Draw commands are executed synchronously via `executeCommands()`. Detected automatically via `Platform.OS === 'web'`.
+
+```bash
+npm install @colon-dev/pivotx react-native-webview
+npx expo install react-native-webview   # Expo managed workflow
+```
+
+> `react-native-webview` is only needed on native (iOS/Android). On Expo Web it's not used. pIvotX marks it as an optional peer dependency.
+
+**JSX mode** — declarative components:
+
+```tsx
+import { useState } from 'react';
+import {
+  PivotNativeCanvas, PivotCircle, PivotLabel, useNativeGameLoop,
+} from '@colon-dev/pivotx/react-native';
+
+export default function GameScreen() {
+  const [x, setX] = useState(200);
+
+  useNativeGameLoop((dt) => {
+    setX(prev => (prev + 100 * dt) % 400);
+  });
+
+  return (
+    <PivotNativeCanvas width={400} height={300} background="#1a1a2e">
+      <PivotCircle center={{ x, y: 150 }} radius={24} fill="#e94560" />
+      <PivotLabel text="Hello Expo!" position={{ x: 200, y: 30 }} fill="white" />
+    </PivotNativeCanvas>
+  );
+}
+```
+
+**JSX mode with camera and touch input:**
+
+```tsx
+import { useState, useRef, useCallback } from 'react';
+import {
+  PivotNativeCanvas, PivotNativeCamera, PivotCircle, PivotRectangle,
+  PivotPlatform, PivotLabel, useNativeGameLoop,
+} from '@colon-dev/pivotx/react-native';
+
+export default function PlatformerScreen() {
+  const player = useRef({ x: 100, y: 200, vy: 0 });
+  const camera = useRef({ x: 0, y: 0 });
+  const [, tick] = useState(0);
+
+  useNativeGameLoop((dt) => {
+    const p = player.current;
+    p.vy += 800 * dt;         // gravity
+    p.y  += p.vy * dt;
+    if (p.y > 250) { p.y = 250; p.vy = 0; }  // simple floor
+    camera.current = { x: p.x - 200, y: 0 };
+    tick(n => n + 1);
+  });
+
+  const handleTouch = useCallback((action: string, touches: Array<{x: number; y: number}>) => {
+    if (action === 'start') {
+      player.current.vy = -400;  // jump on tap
+    }
+  }, []);
+
+  const p = player.current;
+  return (
+    <PivotNativeCanvas width={400} height={300} background="#1a1a2e" onTouch={handleTouch}>
+      <PivotNativeCamera position={camera.current}>
+        <PivotPlatform position={{ x: 0, y: 280 }} width={800} height={20} fill="#4a7c59" />
+        <PivotRectangle position={{ x: p.x, y: p.y }} width={24} height={24} fill="#e94560" />
+      </PivotNativeCamera>
+      <PivotLabel text="Tap to jump" position={{ x: 200, y: 15 }} fill="white" />
+    </PivotNativeCanvas>
+  );
+}
+```
+
+**Script mode** — full 60fps game loop running inside the WebView:
+
+```tsx
+import { PivotNativeCanvas } from '@colon-dev/pivotx/react-native';
+
+export default function GameScreen() {
+  return (
+    <PivotNativeCanvas
+      width={400}
+      height={300}
+      script={`
+        var { Canvas, Circle, Point } = PivotX;
+        var canvas = new Canvas("game");
+        var ball = { x: 200, y: 150, vx: 160, vy: 120, r: 20 };
+        canvas.startLoop(function(dt) {
+          canvas.clear();
+          ball.x += ball.vx * dt;
+          ball.y += ball.vy * dt;
+          if (ball.x < ball.r || ball.x > 400 - ball.r) ball.vx *= -1;
+          if (ball.y < ball.r || ball.y > 300 - ball.r) ball.vy *= -1;
+          var c = new Circle(Point(ball.x, ball.y), ball.r);
+          c.fillColor = "#e94560";
+          canvas.add(c);
+        });
+      `}
+    />
+  );
+}
+```
+
+On native, the WebView loads the pIvotX UMD bundle and runs the bridge renderer internally. On Expo Web, `PivotNativeCanvas` detects `Platform.OS === 'web'` and renders a direct `<canvas>` element instead — no WebView involved. All touch events are forwarded back to React Native. On web, both touch and mouse events are handled so desktop browsers work too.
+
+---
+
 ## API Reference
 
 ### `Point(x, y)`
@@ -191,18 +306,26 @@ Wraps a `<canvas>` DOM element.
 
 ```js
 const canvas = new Canvas("myCanvasId");
+const crisp  = new Canvas("myCanvasId", { hiDPI: true });  // Retina-sharp rendering
 ```
 
 | Method | Returns | Description |
 |---|---|---|
-| `getWidth()` | `number` | Canvas width in pixels |
-| `getHeight()` | `number` | Canvas height in pixels |
+| `getWidth()` | `number` | Canvas width in logical pixels |
+| `getHeight()` | `number` | Canvas height in logical pixels |
 | `getCenter()` | `IPoint` | Centre point of the canvas |
 | `clear()` | `void` | Erase everything — call at start of each frame |
 | `add(shape)` | `void` | Draw any `IDrawable` immediately |
 | `startLoop(fn)` | `void` | Start rAF loop, `fn(dt)` called each frame |
 | `stopLoop()` | `void` | Stop the running loop |
 | `ctx` | `CanvasRenderingContext2D` | Raw 2D context for advanced use |
+| `pixelRatio` | `number` | Device-pixel ratio in use (1 unless `hiDPI`) |
+| `enableAutoResize()` | `void` | CSS-scale to fill the parent (aspect preserved, follows resizes) |
+| `disableAutoResize()` | `void` | Stop auto-resizing, restore natural size |
+
+With `{ hiDPI: true }` the backing store renders at `devicePixelRatio` while all
+your coordinates stay logical. If you also use `UIManager` or `Pointer`, keep
+input aligned with `ui.pixelRatio = canvas.pixelRatio` / `Pointer.pixelRatio = canvas.pixelRatio`.
 
 ---
 
@@ -272,6 +395,10 @@ const l = new Label("text", Point(x, y), "20px Arial");
 | `fillColor` | `string` | `"#000"` | Text colour |
 | `textAlign` | `"left" \| "center" \| "right"` | `"center"` | Horizontal anchor |
 | `textBaseline` | `"top" \| "middle" \| "bottom"` | `"middle"` | Vertical anchor |
+| `lineHeight` | `number \| null` | 1.25 × font size | Line spacing for multi-line text (`\n`) |
+| `maxWidth` | `number \| null` | `null` | Word-wrap the text to this pixel width |
+| `strokeColor` | `string \| null` | `null` | Outline colour (drawn under the fill) |
+| `strokeWidth` | `number` | `2` | Outline thickness |
 
 ---
 
@@ -475,8 +602,12 @@ canvas.startLoop((dt) => {
 
 | Method | Returns | Description |
 |---|---|---|
-| `follow(target, lerp?)` | `void` | Centre on target. `lerp` 0.05–0.15 = smooth, 1 = instant |
+| `follow(target, lerp?, dt?)` | `void` | Centre on target. `lerp` 0.05–0.15 = smooth, 1 = instant. Pass `dt` for frame-rate-independent smoothing |
+| `followWithDeadZone(target, w, h, lerp?, dt?)` | `void` | Only scroll when the target leaves a central dead-zone box |
 | `clamp(worldW, worldH)` | `void` | Prevent scrolling past world edges |
+| `shake(intensity, duration?)` | `void` | Screen shake (px, seconds) — eases out; needs `update(dt)` |
+| `setZoom(zoom, duration?)` | `void` | Set zoom, optionally animated over `duration` seconds |
+| `update(dt)` | `void` | Advance shake decay & zoom animation (call before `begin`) |
 | `begin(ctx)` | `void` | Apply camera transform (call before world drawing) |
 | `end(ctx)` | `void` | Restore screen space (call after world drawing) |
 | `worldToScreen(p)` | `IPoint` | Convert world position to screen coordinates |
@@ -660,6 +791,465 @@ if (depth) {
 
 ---
 
+### Physics Body Helpers
+
+Sub-stepped physics integrator and collision resolver. Prevents tunneling through thin platforms by breaking movement into smaller steps. Available from all three entry points: `pivotx`, `pivotx/react`, and `pivotx/react-native`.
+
+```ts
+import { stepBody, resolveCollisions } from '@colon-dev/pivotx';
+import type { PhysicsBody, StaticRect, StepOptions, CollisionResult } from '@colon-dev/pivotx';
+```
+
+#### `PhysicsBody` interface
+
+```ts
+interface PhysicsBody {
+  x: number;  y: number;
+  vx: number; vy: number;
+  width: number; height: number;
+  grounded: boolean;
+}
+```
+
+#### `StaticRect` interface
+
+```ts
+interface StaticRect {
+  x: number; y: number;
+  w: number; h: number;
+  oneWay?: boolean;   // jump-through platform: only collides when landing from above
+  vx?: number;        // moving platform: stepBody advances it and carries
+  vy?: number;        //   bodies standing on it
+}
+```
+
+#### `StepOptions`
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `gravity` | `number` | `0` | Gravity in pixels/sec² (applied to `vy`) |
+| `maxStep` | `number` | `8` | Max movement per sub-step (smaller = more accurate) |
+| `friction` | `number` | `1` | Friction multiplier on `vx` (0–1), frame-rate independent (per 1/60 s) |
+| `maxFallSpeed` | `number` | — | Terminal falling velocity in pixels/sec (caps `vy`) |
+| `bounce` | `number` | `0` | Restitution 0–1: velocity kept (reversed) on impact |
+
+#### `stepBody(body, platforms, dt, options?)`
+
+Advance a physics body by `dt` seconds. Applies gravity, friction, and resolves all collisions via sub-stepping. Modifies `body` in place. Returns `CollisionResult[]` describing which platforms and sides were hit.
+
+```ts
+const player: PhysicsBody = { x: 50, y: 100, vx: 0, vy: 0, width: 32, height: 32, grounded: false };
+const platforms: StaticRect[] = [{ x: 0, y: 350, w: 600, h: 50 }];
+
+canvas.startLoop((dt) => {
+  canvas.clear();
+  player.vx = 0;
+  if (keys['ArrowRight']) player.vx = 200;
+  if (keys['ArrowLeft'])  player.vx = -200;
+  if (keys[' '] && player.grounded) player.vy = -400;
+
+  const hits = stepBody(player, platforms, dt, { gravity: 800, friction: 0.9 });
+
+  // React to specific collisions
+  for (const hit of hits) {
+    if (hit.side === 'top') console.log('Landed on platform');
+  }
+});
+```
+
+#### `resolveCollisions(body, platforms)`
+
+Resolve collisions for a single position (no sub-stepping). Called internally by `stepBody`, but can be used directly for custom integration.
+
+#### `stepBodyOnTilemap(body, tilemap, dt, options?)`
+
+Like `stepBody`, but collides directly against a `Tilemap`'s solid tiles with automatic broad-phase culling (only nearby tiles are checked, so huge maps stay fast).
+
+#### Circle & raycast helpers
+
+```ts
+circlesOverlap({ x, y, radius }, { x, y, radius });      // boolean
+circleAABBOverlap({ x, y, radius }, aabb);               // boolean, corners handled
+circleAABBResolve(circle, aabb);                         // pushes circle out, returns move | null
+const hit = raycastAABB(origin, dir, aabb, maxT?);       // { t, point, normal } | null
+raycastCircle(origin, dir, center, radius, maxT?);       // ray vs circle
+
+// Continuous (swept) cast — a moving circle can't tunnel at any speed
+const sweep = sweepCircleAABB(ball, { x: vx * dt, y: vy * dt }, wall.bounds);
+if (sweep) {
+  ball.x += vx * dt * sweep.t;    // move to the contact point
+  ball.y += vy * dt * sweep.t;    // then reflect off sweep.normal to bounce
+}
+```
+
+#### `SpatialHash` — broad-phase for many objects
+
+```ts
+const hash = new SpatialHash(64);          // cell size ≈ average object size
+hash.clear();                              // start of frame
+for (const e of enemies) hash.insert(e, createAABB(e.x, e.y, e.w, e.h));
+const nearby = hash.query(playerBounds);   // narrow-phase only these, not all n
+```
+
+#### `CollisionResult`
+
+```ts
+interface CollisionResult {
+  side: 'top' | 'bottom' | 'left' | 'right';
+  platform: StaticRect;
+}
+```
+
+---
+
+### Sound & Audio
+
+pIvotX includes a built-in sound engine powered by the Web Audio API for playing sound effects and music.
+
+#### `Sound`
+
+A single sound instance. Can be used standalone or via `SoundManager`.
+
+```ts
+import { Sound } from '@colon-dev/pivotx';
+
+const jumpSfx = await Sound.load('/sfx/jump.mp3');
+jumpSfx.play();
+jumpSfx.volume = 0.5;
+jumpSfx.loop = true;
+jumpSfx.pause();
+jumpSfx.resume();
+jumpSfx.stop();
+```
+
+| Property/Method | Type | Description |
+|---|---|---|
+| `Sound.load(src)` | `Promise<Sound>` | Load a sound from a URL |
+| `Sound.getAudioContext()` | `AudioContext` | Get the shared AudioContext |
+| `.play()` | `void` | Start or restart playback |
+| `.pause()` | `void` | Pause, keeping position |
+| `.resume()` | `void` | Resume from paused position |
+| `.stop()` | `void` | Stop and reset to beginning |
+| `.playOneShot(volume?)` | `void` | Fire-and-forget overlapping playback (rapid SFX) |
+| `.playSegment(start, dur, vol?)` | `void` | Play a slice of the buffer (audio sprites) |
+| `.defineSprites(map)` | `this` | Name slices: `{ coin: [0.4, 0.5] }` — then `.playSprite('coin')` |
+| `.playSprite(name, vol?)` | `void` | Play a named sprite slice (overlapping) |
+| `.fadeTo(volume, seconds)` | `void` | Smoothly ramp volume to a target |
+| `.fadeIn(seconds, target?)` | `void` | Play from silence and fade in |
+| `.fadeOut(seconds)` | `void` | Fade to silence, then stop |
+| `.dispose()` | `void` | Stop and release buffer/audio nodes |
+| `.volume` | `number` | Gain from 0 (silent) to 1 (full) |
+| `.playbackRate` | `number` | Speed/pitch multiplier (1 = normal), live-adjustable |
+| `.pan` | `number` | Stereo pan -1 (left) to 1 (right) — cheap positional audio |
+| `.loop` | `boolean` | Whether playback repeats |
+| `.playing` | `boolean` | Whether currently playing |
+| `.paused` | `boolean` | Whether paused (resume() continues) |
+| `.duration` | `number` | Duration in seconds |
+| `.currentTime` | `number` | Current playback position in seconds |
+
+#### `SoundManager`
+
+Global manager for named sounds, with master volume and mute control.
+
+```ts
+import { SoundManager } from '@colon-dev/pivotx';
+
+// Load sounds (like AssetLoader but for audio)
+await SoundManager.loadSounds({
+  jump:  '/sfx/jump.mp3',
+  coin:  '/sfx/coin.wav',
+  theme: '/music/theme.ogg',
+});
+
+// Play
+SoundManager.play('theme', { loop: true, volume: 0.6 });
+SoundManager.play('jump');
+
+// Control
+SoundManager.stop('theme');
+SoundManager.pause('theme');
+SoundManager.resume('theme');
+SoundManager.stopAll();
+
+// Master volume
+SoundManager.masterVolume = 0.8;
+SoundManager.mute();
+SoundManager.unmute();
+```
+
+| Method | Return | Description |
+|---|---|---|
+| `SoundManager.loadSound(name, src, opts?)` | `Promise<Sound>` | Load a single sound (`opts.group` assigns a bus) |
+| `SoundManager.loadSounds(manifest, opts?)` | `Promise<Record<K, Sound>>` | Load multiple sounds in parallel |
+| `SoundManager.setGroupVolume(group, v)` | `void` | Per-bus volume (e.g. `'sfx'` vs `'music'`) |
+| `SoundManager.getGroupVolume(group)` | `number` | Current bus volume |
+| `SoundManager.getSound(name)` | `Sound \| undefined` | Retrieve a loaded Sound |
+| `SoundManager.play(name, opts?)` | `Sound \| undefined` | Play by name (opts: `loop`, `volume`) |
+| `SoundManager.stop(name)` | `void` | Stop a named sound |
+| `SoundManager.pause(name)` | `void` | Pause a named sound |
+| `SoundManager.resume(name)` | `void` | Resume a named sound |
+| `SoundManager.stopAll()` | `void` | Stop all sounds |
+| `SoundManager.pauseAll()` | `void` | Pause every playing sound (pause menu) |
+| `SoundManager.resumeAll()` | `void` | Resume every paused sound |
+| `SoundManager.setVolume(name, v)` | `void` | Set a named sound's volume |
+| `SoundManager.unload(name)` | `void` | Dispose and remove a named sound |
+| `SoundManager.unloadAll()` | `void` | Dispose and remove every sound |
+| `SoundManager.masterVolume` | `number` | Get/set master volume (0 – 1) |
+| `SoundManager.mute()` | `void` | Mute all |
+| `SoundManager.unmute()` | `void` | Unmute all |
+| `SoundManager.muted` | `boolean` | Whether currently muted |
+
+---
+
+### Input — Keyboard & Gamepad
+
+Built-in input engines — no manual event listeners needed. The per-frame
+"just pressed / just released" states are updated automatically by
+`Canvas.startLoop` and `useGameLoop`; in a custom rAF loop call
+`updateInputs()` at the end of each frame.
+
+#### `Keyboard`
+
+```ts
+import { Keyboard } from '@colon-dev/pivotx';
+
+canvas.startLoop((dt) => {
+  player.vx = 240 * Keyboard.getAxis('horizontal');   // arrows + WASD → -1..1
+  if (Keyboard.justPressed('space') && player.grounded) player.vy = -500;
+  if (Keyboard.isDown('shift')) player.vx *= 1.8;     // sprint
+});
+```
+
+| Method | Return | Description |
+|---|---|---|
+| `Keyboard.isDown(key)` | `boolean` | True while the key is held |
+| `Keyboard.justPressed(key)` | `boolean` | True only on the frame the key went down |
+| `Keyboard.justReleased(key)` | `boolean` | True only on the frame the key was released |
+| `Keyboard.getAxis(axis)` | `number` | `'horizontal'` / `'vertical'` → -1..1 (arrows + WASD) |
+| `Keyboard.anyDown` | `boolean` | True if any key is held ("press any key" screens) |
+| `Keyboard.init()` / `.destroy()` | `void` | Eager attach / full detach (attach is automatic) |
+
+Keys accept friendly names (`'a'`, `'left'`, `'space'`, `'enter'`, `'shift'`, …)
+or raw `KeyboardEvent.code` values (`'KeyW'`, `'ArrowLeft'`, `'F1'`).
+Keys stuck by a window-focus change are released automatically.
+
+#### `GamepadInput`
+
+```ts
+import { GamepadInput } from '@colon-dev/pivotx';
+
+canvas.startLoop((dt) => {
+  const stick = GamepadInput.getStick('left');       // { x: -1..1, y: -1..1 }
+  player.vx = 240 * stick.x;
+  if (GamepadInput.justPressed('a')) player.jump();
+  if (GamepadInput.isDown('rt')) player.shoot(GamepadInput.getTrigger('rt'));
+});
+
+GamepadInput.vibrate(200, 0.8);   // rumble: 200 ms at 80 %
+```
+
+| Method | Return | Description |
+|---|---|---|
+| `GamepadInput.connected` | `boolean` | True if a controller is connected |
+| `GamepadInput.isDown(btn)` | `boolean` | True while a button is held |
+| `GamepadInput.justPressed(btn)` | `boolean` | True only on the press frame |
+| `GamepadInput.justReleased(btn)` | `boolean` | True only on the release frame |
+| `GamepadInput.getStick(side)` | `IPoint` | `'left'` / `'right'` stick with dead-zone applied |
+| `GamepadInput.getTrigger(t)` | `number` | `'lt'` / `'rt'` analogue value 0–1 |
+| `GamepadInput.vibrate(ms, strong?, weak?)` | `void` | Rumble (where supported) |
+| `GamepadInput.deadZone` | `number` | Stick dead-zone (default 0.15) |
+| `GamepadInput.raw` | `Gamepad \| null` | Raw Gamepad API object |
+
+Buttons use standard-mapping names — `'a' 'b' 'x' 'y' 'lb' 'rb' 'lt' 'rt'
+'back' 'start' 'ls' 'rs' 'up' 'down' 'left' 'right' 'home'` — or a raw index.
+
+#### `Pointer`
+
+Unified mouse/touch state on the canvas (for the game world — UI widgets are
+handled by `UIManager`). Coordinates are in canvas pixels.
+
+```ts
+import { Pointer } from '@colon-dev/pivotx';
+
+Pointer.attach(document.getElementById('game'));
+
+canvas.startLoop((dt) => {
+  if (Pointer.justPressed) shootAt(Pointer.x, Pointer.y);
+  if (Pointer.isDown)      aimAt(Pointer.x, Pointer.y);
+});
+```
+
+`Pointer.x` / `.y` / `.isDown` / `.justPressed` / `.justReleased`, plus
+`attach(canvas)` / `detach()`. Use `camera.screenToWorld()` for world coordinates.
+
+#### `InputMap` — action mapping
+
+Name actions once, bind any mix of keys and gamepad buttons, query by action —
+rebindable controls with zero physical-input references in game code.
+
+```ts
+import { InputMap } from '@colon-dev/pivotx';
+
+InputMap.bind('jump',  ['space', 'w', 'gamepad:a']);
+InputMap.bind('shoot', ['f', 'gamepad:rt']);
+
+canvas.startLoop((dt) => {
+  if (InputMap.justPressed('jump') && player.grounded) player.vy = -500;
+  if (InputMap.isDown('shoot')) fire();
+});
+```
+
+Plain strings are keyboard keys; prefix `gamepad:` for controller buttons.
+Also: `addBinding()`, `unbind()`, `getBindings()`.
+
+---
+
+### UI Engine
+
+Canvas-rendered widgets for building game UI fast — buttons, panels, HUD
+text, progress bars, and a virtual joystick for touch controls. `UIManager`
+handles pointer input (mouse + multi-touch) and draws everything with one call.
+
+```ts
+import {
+  UIManager, UIButton, UIPanel, UIText, UIProgressBar, UIJoystick, Point,
+} from '@colon-dev/pivotx';
+
+const ui = new UIManager(document.getElementById('game'));
+
+// HUD
+const hp = new UIProgressBar(Point(16, 16), 200, 20, { fill: '#22c55e', label: 'HP' });
+const score = new UIText('Score: 0', Point(16, 44), { font: 'bold 18px Arial' });
+
+// Menu panel with auto-layout
+const menu = new UIPanel(Point(220, 120), 200, 0, { layout: 'column', gap: 12 });
+const playBtn = new UIButton('Play', Point(0, 0), 168, 44);
+playBtn.onClick = () => startGame();
+menu.add(playBtn).add(new UIButton('Options', Point(0, 0), 168, 44));
+
+// Virtual joystick for mobile
+const stick = new UIJoystick(Point(90, 330), 60);
+
+ui.add(hp).add(score).add(menu).add(stick);
+
+canvas.startLoop((dt) => {
+  player.x += 220 * stick.value.x * dt;   // read the joystick like a gamepad
+  hp.value = player.health / 100;
+
+  canvas.clear();
+  // ...draw the game world...
+  ui.draw(canvas.ctx);                     // UI on top, in screen space
+});
+
+// ui.detach() when tearing down
+```
+
+| Widget | Description |
+|---|---|
+| `UIManager` | Attaches pointer events to the canvas, hit-tests topmost-first, `add/remove/clear`, `draw(ctx)`, `detach()` |
+| `UIButton` | Rounded-rect button — `text`, `onClick`, hover/pressed/disabled styles via `UIButtonStyle` |
+| `UIPanel` | Container with background/border; `layout: 'column' \| 'row'` auto-stacks children with `gap` & `padding` |
+| `UIText` | Positioned HUD/menu text (`color`, `font`, `align`, `baseline`) |
+| `UIProgressBar` | Health/loading bar — `value` 0–1, `fill`, `background`, optional centred `label` |
+| `UIJoystick` | Virtual on-screen stick — read `value {x, y}` (-1..1) each frame, `active` flag |
+| `UICheckbox` | Labelled toggle — `checked`, `onChange(checked)` |
+| `UISlider` | Draggable slider — `value`, `min`/`max`/`step`, `onChange(value)` |
+| `UIImageButton` | Image-skinned button — press-scale & hover-opacity states, optional spritesheet `sourceRect` |
+| `UINineSlice` | Nine-slice panel skin from an image/atlas region — corners stay crisp at any size |
+| `UIElement` | Abstract base class — extend it (implement `draw`) to build custom widgets |
+
+**Anchoring:** set `el.anchor = { h: 'right', v: 'top' }` and `el.anchorOffset = { x: 16, y: 16 }`
+to pin elements to canvas edges/centre — recomputed every frame, so resizes just work.
+
+**Keyboard navigation:** call `ui.enableKeyboardNav()` — Tab/arrows move focus between
+buttons/checkboxes/sliders, Enter/Space activates, Left/Right adjusts a focused slider,
+and a dashed focus ring is drawn automatically (`ui.focusRingColor`).
+
+All elements share `position`, `width`, `height`, `visible`, `enabled`,
+`hovered`, `pressed`, and `onClick` / `onPress` / `onRelease` callbacks.
+Works on desktop (mouse) and mobile (multi-touch: joystick + buttons at once).
+In React, attach via the canvas ref: `new UIManager(canvasRef.current.element)`.
+
+---
+
+### Game Utilities
+
+Small engines that remove the boilerplate around every game. All are
+plain objects driven by your loop's `dt` — call their `update(dt)` each frame.
+
+#### `Vec2` — vector math
+
+```ts
+const dir = Vec2.normalize(Vec2.sub(target, enemy.position));
+enemy.vx = dir.x * speed;
+```
+
+`of, add, sub, scale, dot, length, lengthSq, distance, normalize, lerp,
+rotate, clampLength, angle, fromAngle` — all pure, all return new objects.
+
+#### `Timers` — game-time timers
+
+```ts
+const timers = new Timers();
+timers.after(2, () => spawnBoss());              // one-shot
+const h = timers.every(0.5, () => spawnEnemy()); // repeating, h.cancel() to stop
+
+canvas.startLoop((dt) => { timers.update(dt); ... });
+```
+
+Unlike `setTimeout`, these advance with game time — they pause when your game pauses.
+
+#### `TweenManager` — property animation
+
+```ts
+const tweens = new TweenManager();
+tweens.to(player.position, { x: 400, y: 100 }, 0.6, 'easeOutQuad')
+      .then(() => console.log('arrived'));
+tweens.to(title, { opacity: 1 }, 1, 'easeOutCubic', 0.5);   // 0.5 s delay
+
+canvas.startLoop((dt) => { tweens.update(dt); ... });
+```
+
+Easings: `linear`, `easeIn/Out/InOutQuad`, `easeIn/Out/InOutCubic`,
+`easeOutBack`, `easeOutElastic`, `easeOutBounce`, or any custom `(t) => t` function.
+
+#### `ParticleEmitter` — pooled particles
+
+```ts
+const sparks = new ParticleEmitter({
+  colors: ['#fbbf24', '#f97316'], speed: [80, 260],
+  life: [0.3, 0.8], size: [2, 5], gravity: 400,
+});
+sparks.burst(x, y, 24);            // explosion
+sparks.rate = 40;                  // or continuous emission from sparks.position
+
+canvas.startLoop((dt) => {
+  sparks.update(dt);
+  canvas.add(sparks);              // it's an IDrawable
+});
+```
+
+#### `Scene` & `SceneManager` — game states
+
+```ts
+class MenuScene extends Scene {
+  update(dt) { if (Keyboard.justPressed('enter')) this.manager.switch(new GameScene()); }
+  draw(ctx)  { /* title screen */ }
+}
+
+const scenes = new SceneManager(new MenuScene());
+canvas.startLoop((dt) => {
+  canvas.clear();
+  scenes.update(dt);
+  scenes.draw(canvas.ctx);
+});
+```
+
+`switch(scene)` replaces everything; `push(scene)` / `pop()` create overlays
+(pause menu over a frozen game — only the top scene updates, all scenes draw).
+
+---
+
 ### React Components
 
 #### `<PivotCanvas>`
@@ -670,6 +1260,7 @@ The root component. All shape components must be inside it.
 | `width` | `number` | `600` | Width in pixels |
 | `height` | `number` | `400` | Height in pixels |
 | `background` | `string` | transparent | CSS background |
+| `autoClear` | `boolean` | `false` | Clear before child shapes draw each render (no smearing) |
 | `ref` | `PivotCanvasHandle` | — | Access `.ctx`, `.element`, `.clear()` |
 
 #### `<PivotCircle>`, `<PivotRectangle>`, `<PivotLine>`, `<PivotLabel>`
@@ -748,6 +1339,30 @@ Draws a grid-based tile map.
 <PivotTilemap sheet={tileSheet} mapData={levelData} tileSize={32} />
 ```
 
+#### `<PivotTiledBackground>`
+
+Draws a repeating tiled background with parallax scrolling support.
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `image` | `HTMLImageElement` | — | Pre-loaded tile image (use `AssetLoader.loadImage`) |
+| `canvasWidth` | `number` | — | Viewport width |
+| `canvasHeight` | `number` | — | Viewport height |
+| `scrollX` | `number` | `0` | Horizontal scroll offset |
+| `scrollY` | `number` | `0` | Vertical scroll offset |
+| `opacity` | `number` | `1` | 0–1 opacity |
+| `parallaxFactor` | `number` | `1` | Parallax speed multiplier (0.5 = half speed) |
+
+```tsx
+<PivotTiledBackground
+  image={skyImg}
+  canvasWidth={600}
+  canvasHeight={400}
+  scrollX={scrollRef.current}
+  parallaxFactor={0.3}
+/>
+```
+
 #### `useGameLoop(callback)`
 
 Starts an rAF loop for the lifetime of the component. Stops automatically on unmount.
@@ -757,6 +1372,235 @@ useGameLoop((dt: number) => {
   // dt = seconds since last frame
   // update state here, then trigger re-render
 });
+```
+
+#### `useSound()`
+
+React convenience hook for controlling sounds via `SoundManager`.
+
+```tsx
+import { useSound, SoundManager } from '@colon-dev/pivotx/react';
+
+// Load sounds once (e.g. in a useEffect)
+useEffect(() => {
+  SoundManager.loadSounds({ jump: '/sfx/jump.mp3', bgm: '/music/theme.mp3' });
+}, []);
+
+const sound = useSound();
+
+// In your game loop or event handler:
+sound.play('jump');
+sound.play('bgm', { loop: true, volume: 0.5 });
+sound.stop('bgm');
+sound.setMasterVolume(0.8);
+sound.mute();
+sound.unmute();
+```
+
+#### UI components — `<PivotUI>` and widgets
+
+Declare canvas UI in JSX. `<PivotUI>` hosts a `UIManager` inside the parent
+`<PivotCanvas>` and draws it every frame on top of your game; widget props
+sync to the underlying widgets on every render.
+
+```tsx
+const stickRef = useRef<UIJoystick | null>(null);
+const [hp, setHp] = useState(1);
+const [volume, setVolume] = useState(0.8);
+
+<PivotCanvas width={600} height={400} autoClear>
+  {/* ...game shapes... */}
+  <PivotUI>
+    <PivotButton x={230} y={170} text="Play" onClick={start} />
+    <PivotProgressBar x={16} y={16} value={hp} fill="#22c55e" label="HP" />
+    <PivotSlider x={16} y={50} value={volume} onChange={setVolume} />
+    <PivotCheckbox x={16} y={84} label="Sound" checked={soundOn} onChange={setSoundOn} />
+    <PivotUIText x={16} y={116} text={`Score: ${score}`} font="bold 18px Arial" />
+    <PivotJoystick x={80} y={330} radius={55} widgetRef={stickRef} />
+  </PivotUI>
+</PivotCanvas>
+```
+
+- Read continuous values (joystick) inside your game loop via `widgetRef`:
+  `stickRef.current?.value.x`.
+- Pass `manual` to `<PivotUI uiRef={uiRef} manual>` and call
+  `uiRef.current.draw(ctx)` yourself for exact draw-order control.
+- Every widget accepts `visible`, and interactive ones accept `disabled`.
+
+#### `useKeyPressed(key)` / `useGamepadConnected()`
+
+Reactive input state for menus and HUDs (they re-render the component —
+inside game loops, poll `Keyboard`/`GamepadInput` directly instead).
+
+```tsx
+const paused = useKeyPressed('escape');
+const hasGamepad = useGamepadConnected();
+```
+
+#### `useUIManager(canvasRef, setup?)`
+
+A `UIManager` bound to a `<PivotCanvas>` ref with automatic attach/detach.
+
+```tsx
+const canvasRef = useRef<PivotCanvasHandle>(null);
+const ui = useUIManager(canvasRef, (ui) => {
+  const btn = new UIButton('Play', Point(220, 180));
+  btn.onClick = () => setStarted(true);
+  ui.add(btn);
+});
+
+useGameLoop(() => {
+  const ctx = canvasRef.current?.ctx;
+  if (ctx && ui.current) ui.current.draw(ctx);
+});
+```
+
+---
+
+### React Native / Expo Components
+
+Import from `@colon-dev/pivotx/react-native`. Requires `react-native-webview` as a peer dependency (native only — not used on Expo Web).
+
+**Platform support:** Components work identically on iOS, Android, and Expo Web. `PivotNativeCanvas` automatically detects the platform via `Platform.OS` and switches between WebView rendering (native) and direct `<canvas>` rendering (web).
+
+#### `<PivotNativeCanvas>`
+
+Root component. Renders a WebView (native) or a direct HTML5 Canvas (Expo Web) with the full pIvotX engine.
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `width` | `number` | `400` | Canvas width |
+| `height` | `number` | `300` | Canvas height |
+| `background` | `string` | `'#000'` | CSS background colour |
+| `script` | `string` | — | Game code string (script mode) |
+| `onGameEvent` | `(name, data?) => void` | — | Receive events from WebView game |
+| `onTouch` | `(action, touches) => void` | — | Touch events from the canvas |
+| `style` | `object` | — | React Native view style |
+| `children` | `ReactNode` | — | PivotNative* shape components (JSX mode) |
+| `ref` | `PivotNativeCanvasHandle` | — | `.postMessage()`, `.injectScript()` |
+
+#### Native Shape Components
+
+All accept the same props as web React components, with one key difference:
+**Image-based components use `src: string` (URL)** instead of `HTMLImageElement` or `SpriteSheet`, because `HTMLImageElement` doesn't exist in React Native.
+
+| Component | Key Props |
+|---|---|
+| `<PivotCircle>` | `center`, `radius`, `fill`, `stroke`, `lineWidth` |
+| `<PivotRectangle>` | `position`, `width`, `height`, `fill`, `stroke` |
+| `<PivotLine>` | `start`, `end`, `stroke`, `lineWidth` |
+| `<PivotLabel>` | `text`, `position`, `font`, `fill`, `textAlign` |
+| `<PivotImage>` | `src`, `position`, `width`, `height`, `opacity`, `rotation` |
+| `<PivotSprite>` | `sheetSrc`, `frameWidth`, `frameHeight`, `position`, `frame`, `scale`, `flipX` |
+| `<PivotPlatform>` | `position`, `width`, `height`, `fill`, `stroke`, `oneWay` |
+| `<PivotTilemap>` | `sheetSrc`, `frameWidth`, `frameHeight`, `mapData`, `tileSize`, `solidTiles` |
+| `<PivotTiledBackground>` | `src`, `canvasWidth`, `canvasHeight`, `scrollX`, `scrollY`, `parallaxFactor` |
+
+#### Native UI Components
+
+Declare canvas UI in JSX inside `<PivotNativeCanvas>` — widgets are reconciled
+into a real `UIManager` (directly on Expo Web; inside the WebView on
+iOS/Android, where touches route to the UI first and events post back over
+the bridge).
+
+```tsx
+const stick = useRef({ x: 0, y: 0 });
+
+<PivotNativeCanvas width={W} height={H}>
+  {/* ...shapes... */}
+  <PivotUIText x={16} y={14} text={`Coins: ${score}`} color="#fbbf24" />
+  <PivotProgressBar x={16} y={42} value={energy} fill="#22c55e" label="ENERGY" />
+  <PivotJoystick x={86} y={H - 96} radius={58} onMove={(v) => (stick.current = v)} />
+  <PivotButton x={W - 120} y={H - 130} text="JUMP" onClick={jump} />
+</PivotNativeCanvas>
+```
+
+| Component | Key Props |
+|---|---|
+| `<PivotButton>` | `x`, `y`, `text`, `width`, `height`, `background`, `color`, `onClick`, `disabled` |
+| `<PivotUIText>` | `x`, `y`, `text`, `color`, `font` |
+| `<PivotProgressBar>` | `x`, `y`, `value` (0–1), `width`, `height`, `fill`, `label` |
+| `<PivotCheckbox>` | `x`, `y`, `label`, `checked`, `onChange(checked)` |
+| `<PivotSlider>` | `x`, `y`, `value`, `width`, `min`, `max`, `step`, `onChange(value)` |
+| `<PivotJoystick>` | `x`, `y` (centre), `radius`, `onMove({ x, y })` — store in a ref, read in your loop |
+
+> **Native note:** the WebView loads the pIvotX UMD from the jsDelivr CDN, so
+> the UI widgets need the published `@colon-dev/pivotx` ≥ 2.0.0 there (they
+> no-op on older bundles). On Expo Web they work with your local build
+> immediately.
+
+#### `NativeInput` — hardware keyboard & controllers
+
+Bluetooth/USB keyboards and game controllers work on **web and native** with
+one API — on iOS/Android their events reach the WebView's DOM and are
+forwarded over the bridge, no native module required.
+
+```tsx
+import { NativeInput, useNativeGameLoop } from '@colon-dev/pivotx/react-native';
+
+useNativeGameLoop((dt) => {
+  player.vx = 240 * NativeInput.keyAxis('horizontal');     // arrows + WASD
+  const stick = NativeInput.getStick('left');              // controller stick
+  if (NativeInput.isKeyDown('space') || NativeInput.isButtonDown('a')) jump();
+});
+```
+
+| Method | Description |
+|---|---|
+| `NativeInput.isKeyDown(key)` | True while a key is held (same names as `Keyboard`) |
+| `NativeInput.keyAxis(axis)` | `'horizontal'` / `'vertical'` → -1..1 (arrows + WASD) |
+| `NativeInput.gamepadConnected` | True if a controller is connected |
+| `NativeInput.isButtonDown(btn)` | Standard-mapping names (`'a'`, `'start'`, …) or index |
+| `NativeInput.getStick(side)` | Dead-zoned stick `{ x, y }` (`deadZone` configurable) |
+
+Held-state only — for `justPressed` edges, compare against the previous
+frame in your loop. On native, requires `<PivotNativeCanvas>` to be mounted
+(and the ≥ 2.0.0 UMD, as above).
+
+#### `<PivotNativeCamera>`
+
+Wraps children with camera transforms. Shapes outside the camera render in screen space (HUD).
+
+| Prop | Type | Default | Description |
+|---|---|---|---|
+| `position` | `IPoint` | — | Camera viewport top-left |
+| `zoom` | `number` | `1` | Zoom level |
+| `children` | `ReactNode` | — | World-space shapes |
+
+#### `useNativeGameLoop(callback)`
+
+Same pattern as `useGameLoop` — runs an rAF loop for driving state updates.
+
+#### `useNativePostMessage(canvasRef, handlers?)`
+
+Bidirectional messaging between RN and the WebView game. `handlers` maps event names to callbacks.
+
+#### `useNativeSound()`
+
+Audio control hook for React Native — must be called inside `<PivotNativeCanvas>`. Works identically on both native (WebView) and web (Expo Web).
+
+```tsx
+import { PivotNativeCanvas, useNativeSound } from '@colon-dev/pivotx/react-native';
+
+function Game() {
+  const sound = useNativeSound();
+
+  // Load sounds (will execute inside the canvas context)
+  sound.loadSound('jump', '/sfx/jump.mp3');
+
+  // In game logic:
+  sound.play('jump');
+  sound.play('bgm', { loop: true, volume: 0.5 });
+  sound.setMasterVolume(0.8);
+  sound.mute();
+  sound.unmute();
+
+  return (
+    <PivotNativeCanvas width={400} height={300}>
+      ...
+    </PivotNativeCanvas>
+  );
+}
 ```
 
 ---
@@ -811,8 +1655,11 @@ After `npm run build`, the `dist/` folder contains:
 | `pivotx.cjs.js` | CJS | `require()` in Node / older toolchains |
 | `react.esm.js` | ESM | React components + hooks |
 | `react.cjs.js` | CJS | React (CommonJS) |
+| `react-native.esm.js` | ESM | React Native / Expo components + hooks |
+| `react-native.cjs.js` | CJS | React Native (CommonJS) |
 | `index.d.ts` | types | TypeScript types for core |
 | `react.d.ts` | types | TypeScript types for React layer |
+| `react-native.d.ts` | types | TypeScript types for React Native layer |
 
 ---
 

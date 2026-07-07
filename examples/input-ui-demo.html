@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pIvotX — Input & UI Engine Demo</title>
+  <style>
+    body { margin: 0; background: #0f172a; display: flex; flex-direction: column;
+           align-items: center; font-family: Arial, sans-serif; color: #e2e8f0; }
+    h1 { font-size: 20px; margin: 16px 0 8px; }
+    p  { font-size: 13px; color: #94a3b8; margin: 0 0 12px; }
+    canvas { border-radius: 8px; touch-action: none; }
+  </style>
+</head>
+<body>
+  <h1>pIvotX v2.0.0 — Keyboard, Gamepad &amp; UI Engine</h1>
+  <p>Move: WASD / arrows / gamepad left stick / on-screen joystick · Jump: Space or gamepad A · Click the buttons!</p>
+  <canvas id="game" width="640" height="420"></canvas>
+
+  <!-- Local build; on CDN use: https://cdn.jsdelivr.net/npm/@colon-dev/pivotx/dist/pivotx.umd.min.js -->
+  <script src="../dist/pivotx.umd.js"></script>
+  <script>
+    const {
+      Canvas, Point, Circle, Rectangle, Label,
+      Keyboard, GamepadInput,
+      UIManager, UIButton, UIPanel, UIText, UIProgressBar, UIJoystick,
+      stepBody,
+    } = PivotX;
+
+    const canvas = new Canvas('game');
+    const W = canvas.getWidth(), H = canvas.getHeight();
+
+    // ── World ────────────────────────────────────────────────────────────
+    const player = { x: 300, y: 100, vx: 0, vy: 0, width: 28, height: 28, grounded: false };
+    const platforms = [
+      { x: 0,   y: H - 40, w: W,   h: 40 },              // ground
+      { x: 120, y: 280,    w: 150, h: 14, oneWay: true }, // jump-through ledges
+      { x: 380, y: 220,    w: 150, h: 14, oneWay: true },
+    ];
+    let health = 1;
+
+    // ── UI ───────────────────────────────────────────────────────────────
+    const ui = new UIManager(document.getElementById('game'));
+
+    const hpBar = new UIProgressBar(Point(16, 14), 180, 18, {
+      fill: '#22c55e', background: '#1f2937', label: 'HP', borderColor: '#475569',
+    });
+
+    const hurtBtn = new UIButton('Ouch −20', Point(W - 260, 12), 115, 34, {
+      background: '#dc2626', hoverBackground: '#ef4444', pressedBackground: '#991b1b', radius: 17,
+    });
+    hurtBtn.onClick = () => { health = Math.max(0, health - 0.2); GamepadInput.vibrate(150, 0.6); };
+
+    const healBtn = new UIButton('Heal +20', Point(W - 132, 12), 115, 34, {
+      background: '#16a34a', hoverBackground: '#22c55e', pressedBackground: '#15803d', radius: 17,
+    });
+    healBtn.onClick = () => { health = Math.min(1, health + 0.2); };
+
+    const stick = new UIJoystick(Point(80, H - 80), 55);
+    const status = new UIText('—', Point(16, 44), { font: '12px monospace', color: '#94a3b8' });
+
+    ui.add(hpBar).add(hurtBtn).add(healBtn).add(stick).add(status);
+
+    // ── Shapes ───────────────────────────────────────────────────────────
+    const playerShape = new Rectangle(player, player.width, player.height);
+    playerShape.fillColor = '#38bdf8';
+
+    // ── Game loop ────────────────────────────────────────────────────────
+    canvas.startLoop((dt) => {
+      // Input: keyboard + gamepad + virtual joystick, all merged
+      const pad = GamepadInput.getStick('left');
+      const ax = Keyboard.getAxis('horizontal') + pad.x + stick.value.x;
+      player.vx = 240 * Math.max(-1, Math.min(1, ax));
+
+      const jump = Keyboard.justPressed('space') || GamepadInput.justPressed('a')
+                || (stick.value.y < -0.7 && player.grounded);
+      if (jump && player.grounded) player.vy = -560;
+
+      stepBody(player, platforms, dt, { gravity: 1500, maxFallSpeed: 900 });
+
+      // Sync UI state
+      hpBar.value = health;
+      hpBar.fill = health > 0.5 ? '#22c55e' : health > 0.25 ? '#eab308' : '#dc2626';
+      status.text = `gamepad: ${GamepadInput.connected ? 'connected' : 'not detected'}`
+                  + ` | joystick: ${stick.value.x.toFixed(2)}, ${stick.value.y.toFixed(2)}`;
+
+      // Draw
+      canvas.clear();
+      for (const pl of platforms) {
+        const rect = new Rectangle(Point(pl.x, pl.y), pl.w, pl.h);
+        rect.fillColor = pl.oneWay ? '#a16207' : '#334155';
+        canvas.add(rect);
+      }
+      canvas.add(playerShape);
+      ui.draw(canvas.ctx);   // UI always on top
+    });
+  </script>
+</body>
+</html>

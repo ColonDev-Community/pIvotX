@@ -1,5 +1,5 @@
 /**
- * TypeScript example — Showcasing all new v1.1 features.
+ * TypeScript example — Showcasing all pIvotX v2.0.0 features.
  *
  * Demonstrates full type safety with:
  *   AssetLoader, GameImage, Sprite, SpriteSheet, SpriteAnimator,

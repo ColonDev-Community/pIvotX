@@ -36,6 +36,12 @@ export interface PivotCanvasProps {
   width?:       number;
   height?:      number;
   background?:  string;
+  /**
+   * Clear the canvas on every render before child shapes draw, so shapes
+   * driven by React state don't smear over previous frames. Default false
+   * (previous behaviour: shapes accumulate until you clear via the ref).
+   */
+  autoClear?:   boolean;
   style?:       React.CSSProperties;
   className?:   string;
   children?:    ReactNode;
@@ -51,10 +57,18 @@ export interface PivotCanvasProps {
  * </PivotCanvas>
  */
 export const PivotCanvas = forwardRef<PivotCanvasHandle, PropsWithChildren<PivotCanvasProps>>(
-  ({ width = 600, height = 400, background, style, className, children }, ref) => {
+  ({ width = 600, height = 400, background, autoClear = false, style, className, children }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const ctxRef    = useRef<CanvasRenderingContext2D | null>(null);
     const [ctx, setCtx] = useState<CanvasRenderingContext2D | null>(null);
+
+    // autoClear must happen BEFORE child shape effects draw. Child effects run
+    // after this component's render but a parent effect would run after them —
+    // too late. Clearing here in the render phase is safe: the canvas backing
+    // store is outside React's managed output.
+    if (autoClear && ctxRef.current && canvasRef.current) {
+      ctxRef.current.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    }
 
     useEffect(() => {
       const canvas = canvasRef.current;
