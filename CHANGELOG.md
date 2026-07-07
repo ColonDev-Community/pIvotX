@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.0.2] — 2026-07-07
+
+### Security (React Native WebView bridge hardening)
+
+- `generateHTML` interpolations hardened: `width`/`height` coerced to positive integers, `background` validated as a plausible CSS colour (markup breakout impossible), and script-mode code escaped against `</script>` element termination.
+- JSON injected into the WebView (`__pivotDraw`/`__pivotUI`/`__pivotAudio`) now escapes U+2028/U+2029, which are valid in JSON strings but line terminators in JavaScript source on older engines.
+- WebView policies are now configurable props with unchanged defaults: `allowFileAccess` (default `true`), `mixedContentMode` (default `'always'`), `originWhitelist` (default `['*']`) — tighten them for production builds.
+- README security note documenting the trust model of `script` mode / `injectScript()` (same class as `react-native-webview`'s `injectJavaScript`: only run code you control).
+
+---
+
 ## [2.0.1] — 2026-07-07
 
 ### Fixed

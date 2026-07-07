@@ -40,6 +40,13 @@ import { UIManager } from '../core/ui/UIManager';
 import { reconcileUI, createUIReconcilerState } from './web/uiReconciler';
 import { nativeInputStore } from './input/nativeInputStore';
 
+// U+2028/U+2029 are valid inside JSON strings but are line terminators in
+// JavaScript source on older engines — escape them so injected JSON can never
+// break out of the injectJavaScript statement.
+function toJsSource(json: string): string {
+  return json.replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+}
+
 // ─── Shared command collection logic ─────────────────────────────────────────
 
 function useCommandCollection() {
@@ -264,6 +271,9 @@ const NativeWebViewCanvas = forwardRef<
     onGameEvent,
     onTouch,
     worldSpaceTouch = false,
+    allowFileAccess = true,
+    mixedContentMode = 'always',
+    originWhitelist = ['*'],
     style,
     children,
   },
@@ -296,7 +306,7 @@ const NativeWebViewCanvas = forwardRef<
       const frame: DrawCommand[] = [{ type: 'clear' }, ...cmds];
       const json = JSON.stringify(frame);
       webViewRef.current?.injectJavaScript(
-        `window.__pivotDraw(${json}); true;`,
+        `window.__pivotDraw(${toJsSource(json)}); true;`,
       );
     }
 
@@ -307,7 +317,7 @@ const NativeWebViewCanvas = forwardRef<
       if (uiJson !== lastUIJsonRef.current) {
         lastUIJsonRef.current = uiJson === '[]' ? '' : uiJson;
         webViewRef.current?.injectJavaScript(
-          `if (window.__pivotUI) window.__pivotUI(${uiJson}); true;`,
+          `if (window.__pivotUI) window.__pivotUI(${toJsSource(uiJson)}); true;`,
         );
       }
     }
@@ -317,7 +327,7 @@ const NativeWebViewCanvas = forwardRef<
     if (audioCmds.length > 0) {
       const audioJson = JSON.stringify(audioCmds);
       webViewRef.current?.injectJavaScript(
-        `window.__pivotAudio(${audioJson}); true;`,
+        `window.__pivotAudio(${toJsSource(audioJson)}); true;`,
       );
       audioCommandsRef.current = [];
     }
@@ -377,11 +387,11 @@ const NativeWebViewCanvas = forwardRef<
         style={[{ width, height }, style as Record<string, unknown>]}
         scrollEnabled={false}
         bounces={false}
-        originWhitelist={['*']}
+        originWhitelist={originWhitelist}
         javaScriptEnabled={true}
         onMessage={handleMessage}
-        allowFileAccess={true}
-        mixedContentMode="always"
+        allowFileAccess={allowFileAccess}
+        mixedContentMode={mixedContentMode}
       />
       {children}
     </NativeDrawContext.Provider>
