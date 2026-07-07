@@ -2,11 +2,14 @@ import typescript from '@rollup/plugin-typescript';
 import resolve    from '@rollup/plugin-node-resolve';
 import terser     from '@rollup/plugin-terser';
 import dts        from 'rollup-plugin-dts';
+import { readFileSync } from 'fs';
+
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 
 const tsPlugin = () => typescript({ tsconfig: './tsconfig.json' });
 
 const banner = `/*!
- * pIvotX v2.0.0
+ * pIvotX v${pkg.version}
  * Lightweight 2D game library — Vanilla JS, TypeScript & React
  * (c) ${new Date().getFullYear()} ColonDev Community | MIT License
  * https://github.com/ColonDev-Community/pIvotX

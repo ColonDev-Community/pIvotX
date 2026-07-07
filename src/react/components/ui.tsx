@@ -63,8 +63,12 @@ export interface PivotUIProps {
 
 /**
  * Hosts pIvotX UI widgets inside a <PivotCanvas>.
- * Creates a UIManager on the canvas and (unless `manual`) draws the UI every
- * animation frame after the game loop's rAF callback, so it stays on top.
+ *
+ * Place it as the LAST child so the UI draws on top: after every render it
+ * repaints the UI once the sibling shape components have drawn (this is what
+ * keeps it visible in games that re-render each frame with `autoClear`), and
+ * a rAF loop repaints between renders so hover/press/drag feedback stays
+ * live even in static scenes.
  */
 export function PivotUI({ manual = false, uiRef, children }: PivotUIProps) {
   const ctx = useCanvasContext();
@@ -90,8 +94,14 @@ export function PivotUI({ manual = false, uiRef, children }: PivotUIProps) {
       if (uiRef) uiRef.current = null;
       setManager(null);
     };
-     
+
   }, [ctx, manual]);
+
+  // Repaint after every render, once sibling shape effects have drawn —
+  // without this, autoClear games erase the UI between rAF repaints.
+  useEffect(() => {
+    if (!manual && manager) manager.draw(ctx);
+  });
 
   return manager ? (
     <UIManagerContext.Provider value={manager}>{children}</UIManagerContext.Provider>
