@@ -279,6 +279,7 @@ const NativeWebViewCanvas = forwardRef<
     onGameEvent,
     onTouch,
     worldSpaceTouch = false,
+    baseUrl,
     allowFileAccess = true,
     mixedContentMode = 'always',
     originWhitelist = ['*'],
@@ -421,7 +422,7 @@ const NativeWebViewCanvas = forwardRef<
     <NativeDrawContext.Provider value={contextValue}>
       <WebView
         ref={webViewRef}
-        source={{ html }}
+        source={baseUrl ? { html, baseUrl } : { html }}
         style={[{ width, height }, style as Record<string, unknown>]}
         scrollEnabled={false}
         bounces={false}

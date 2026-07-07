@@ -18,7 +18,7 @@ declare module 'react-native-webview' {
 
   export interface WebViewProps {
     ref?:               Ref<WebView>;
-    source?:            { html: string } | { uri: string };
+    source?:            { html: string; baseUrl?: string } | { uri: string };
     style?:             unknown;
     scrollEnabled?:     boolean;
     bounces?:           boolean;
