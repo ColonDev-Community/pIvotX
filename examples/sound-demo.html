@@ -16,8 +16,10 @@
   </div>
   <canvas id="game" width="600" height="400"></canvas>
 
-  <!-- Load pIvotX from the UMD bundle -->
-  <script src="https://cdn.jsdelivr.net/npm/@colon-dev/pivotx/dist/pivotx.umd.min.js"></script>
+  <!-- Local build (the CDN still serves 1.2.0, which has no sound engine).
+       Once 2.0.0 is published you can use:
+       https://cdn.jsdelivr.net/npm/@colon-dev/pivotx@2/dist/pivotx.umd.min.js -->
+  <script src="../dist/pivotx.umd.js"></script>
 
   <script>
     const { Canvas, Point, Circle, Rectangle, Label, SoundManager } = PivotX;
@@ -28,7 +30,7 @@
     // ── Synthesise simple sounds using Web Audio API ──────────────────────
     // (In a real game you'd load .mp3/.ogg files via SoundManager.loadSounds)
 
-    const audioCtx = PivotX.SoundManager.getAudioContext();
+    const audioCtx = PivotX.Sound.getAudioContext();
 
     function createToneBuffer(freq, duration, type) {
       const sampleRate = audioCtx.sampleRate;
@@ -72,18 +74,20 @@
     let muted = false;
     let masterVol = 1.0;
 
+    function unlockAudio() {
+      if (audioReady) return;
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      audioReady = true;
+      bgmSound.loop = true;
+      bgmSound.fadeIn(1.5, 0.3);   // v2: fade the music in over 1.5s to 30%
+    }
+
     const keys = {};
     window.addEventListener('keydown', (e) => {
       keys[e.key] = true;
 
       // Unlock audio on first interaction
-      if (!audioReady && audioCtx.state === 'suspended') {
-        audioCtx.resume();
-        audioReady = true;
-        bgmSound.loop = true;
-        bgmSound.volume = 0.3;
-        bgmSound.play();
-      }
+      unlockAudio();
 
       if (e.key === 'm' || e.key === 'M') {
         muted = !muted;
@@ -101,26 +105,18 @@
     window.addEventListener('keyup', (e) => { keys[e.key] = false; });
 
     // Unlock audio on canvas click too
-    document.getElementById('game').addEventListener('click', () => {
-      if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-        audioReady = true;
-        bgmSound.loop = true;
-        bgmSound.volume = 0.3;
-        bgmSound.play();
-      }
-    });
+    document.getElementById('game').addEventListener('click', unlockAudio);
 
     // ── Game loop ────────────────────────────────────────────────────────
 
     canvas.startLoop((dt) => {
       canvas.clear();
 
-      // Jump
+      // Jump — playOneShot (v2) lets rapid SFX overlap instead of cutting off
       if (keys[' '] && grounded) {
         vy = -500;
         grounded = false;
-        jumpSound.play();
+        jumpSound.playOneShot();
       }
 
       // Gravity
@@ -129,7 +125,7 @@
 
       // Ground collision
       if (playerY >= 300) {
-        if (!grounded) landSound.play();
+        if (!grounded) landSound.playOneShot();
         playerY = 300;
         vy = 0;
         grounded = true;
