@@ -28,22 +28,30 @@ import { NativeDrawContext } from './context/NativeDrawContext';
 import type {
   DrawCommand,
   AudioCommand,
+  UIWidgetDescriptor,
+  UIWidgetHandlers,
   PivotNativeCanvasProps,
   PivotNativeCanvasHandle,
 } from './bridge/types';
 
 // Web-only: direct canvas command executor (tree-shaken on native)
 import { executeCommands, executeAudioCommands } from './web/executeCommands';
+import { UIManager } from '../core/ui/UIManager';
+import { reconcileUI, createUIReconcilerState } from './web/uiReconciler';
 
 // ─── Shared command collection logic ─────────────────────────────────────────
 
 function useCommandCollection() {
   const commandsRef = useRef<DrawCommand[]>([]);
   const audioCommandsRef = useRef<AudioCommand[]>([]);
+  const uiWidgetsRef = useRef<UIWidgetDescriptor[]>([]);
+  const uiHandlersRef = useRef(new Map<string, UIWidgetHandlers>());
   const cameraRef = useRef({ x: 0, y: 0 });
 
-  // Reset draw commands at the start of each render so children register fresh.
+  // Reset draw commands and UI descriptors at the start of each render so
+  // children register fresh.
   commandsRef.current = [];
+  uiWidgetsRef.current = [];
   // Audio commands are NOT reset per frame — they accumulate and are flushed once.
 
   const registerCommand = useCallback((cmd: DrawCommand) => {
@@ -54,16 +62,31 @@ function useCommandCollection() {
     audioCommandsRef.current.push(cmd);
   }, []);
 
+  const registerUIWidget = useCallback(
+    (desc: UIWidgetDescriptor, handlers?: UIWidgetHandlers) => {
+      uiWidgetsRef.current.push(desc);
+      if (handlers) uiHandlersRef.current.set(desc.id, handlers);
+      else uiHandlersRef.current.delete(desc.id);
+    },
+    [],
+  );
+
   const setCameraPosition = useCallback((pos: { x: number; y: number }) => {
     cameraRef.current = pos;
   }, []);
 
   const contextValue = useMemo(
-    () => ({ registerCommand, registerAudioCommand, cameraPosition: cameraRef.current, setCameraPosition }),
-    [registerCommand, registerAudioCommand, setCameraPosition],
+    () => ({
+      registerCommand,
+      registerAudioCommand,
+      registerUIWidget,
+      cameraPosition: cameraRef.current,
+      setCameraPosition,
+    }),
+    [registerCommand, registerAudioCommand, registerUIWidget, setCameraPosition],
   );
 
-  return { commandsRef, audioCommandsRef, cameraRef, contextValue };
+  return { commandsRef, audioCommandsRef, uiWidgetsRef, uiHandlersRef, cameraRef, contextValue };
 }
 
 // ─── Web implementation ──────────────────────────────────────────────────────
@@ -77,7 +100,10 @@ const WebCanvas = forwardRef<
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
-  const { commandsRef, audioCommandsRef, cameraRef, contextValue } = useCommandCollection();
+  const { commandsRef, audioCommandsRef, uiWidgetsRef, uiHandlersRef, cameraRef, contextValue } =
+    useCommandCollection();
+  const uiManagerRef = useRef<UIManager | null>(null);
+  const uiStateRef = useRef(createUIReconcilerState());
 
   // ── Init canvas context ────────────────────────────────────────────────
 
@@ -85,6 +111,10 @@ const WebCanvas = forwardRef<
     const el = canvasRef.current;
     if (!el) return;
     ctxRef.current = el.getContext('2d');
+    return () => {
+      uiManagerRef.current?.detach();
+      uiManagerRef.current = null;
+    };
   }, []);
 
   // ── Imperative handle ──────────────────────────────────────────────────
@@ -106,6 +136,16 @@ const WebCanvas = forwardRef<
     const cmds = commandsRef.current;
     const frame: DrawCommand[] = [{ type: 'clear' }, ...cmds];
     executeCommands(frame, ctx, el);
+
+    // Reconcile & draw UI widgets on top
+    if (uiWidgetsRef.current.length > 0 || uiStateRef.current.widgets.size > 0) {
+      if (!uiManagerRef.current) uiManagerRef.current = new UIManager(el);
+      const ui = uiManagerRef.current;
+      reconcileUI(ui, uiStateRef.current, uiWidgetsRef.current, (id) =>
+        uiHandlersRef.current.get(id),
+      );
+      ui.draw(ctx);
+    }
 
     // Flush audio commands (one-shot, then clear)
     const audioCmds = audioCommandsRef.current;
@@ -229,7 +269,9 @@ const NativeWebViewCanvas = forwardRef<
   ref,
 ) {
   const webViewRef = useRef<WebView>(null);
-  const { commandsRef, audioCommandsRef, cameraRef, contextValue } = useCommandCollection();
+  const { commandsRef, audioCommandsRef, uiWidgetsRef, uiHandlersRef, cameraRef, contextValue } =
+    useCommandCollection();
+  const lastUIJsonRef = useRef('');
 
   // ── Imperative handle ──────────────────────────────────────────────────
 
@@ -246,7 +288,8 @@ const NativeWebViewCanvas = forwardRef<
 
   useEffect(() => {
     const cmds = commandsRef.current;
-    if (cmds.length === 0 && audioCommandsRef.current.length === 0) return;
+    const hasUI = uiWidgetsRef.current.length > 0 || lastUIJsonRef.current !== '';
+    if (cmds.length === 0 && audioCommandsRef.current.length === 0 && !hasUI) return;
 
     if (cmds.length > 0) {
       const frame: DrawCommand[] = [{ type: 'clear' }, ...cmds];
@@ -254,6 +297,18 @@ const NativeWebViewCanvas = forwardRef<
       webViewRef.current?.injectJavaScript(
         `window.__pivotDraw(${json}); true;`,
       );
+    }
+
+    // Flush UI descriptors only when they actually changed (dirty check),
+    // so a 60fps game loop doesn't spam identical UI over the bridge.
+    if (hasUI) {
+      const uiJson = JSON.stringify(uiWidgetsRef.current);
+      if (uiJson !== lastUIJsonRef.current) {
+        lastUIJsonRef.current = uiJson === '[]' ? '' : uiJson;
+        webViewRef.current?.injectJavaScript(
+          `if (window.__pivotUI) window.__pivotUI(${uiJson}); true;`,
+        );
+      }
     }
 
     // Flush audio commands (one-shot, then clear)
@@ -285,6 +340,13 @@ const NativeWebViewCanvas = forwardRef<
           onTouch(msg.action, touches);
         } else if (msg.type === 'gameEvent' && onGameEvent) {
           onGameEvent(msg.name, msg.data);
+        } else if (msg.type === 'uiEvent') {
+          const handlers = uiHandlersRef.current.get(msg.id);
+          if (handlers) {
+            if (msg.event === 'click') handlers.onClick?.();
+            else if (msg.event === 'change') handlers.onChange?.(msg.value);
+            else if (msg.event === 'move') handlers.onMove?.(msg.value);
+          }
         }
       } catch {
         // Ignore unparseable messages

@@ -83,6 +83,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **useNativeSound** — platform-agnostic audio hook for JSX mode. Audio commands flow through the bridge (native) or execute directly via `SoundManager` (web). Includes `playOneShot`, `pauseAll`/`resumeAll`, `setPlaybackRate`, `fadeTo`, and `fadeOut`.
 - **Audio command bridge** — 16 `AudioCommand` types (`loadSound`, `playSound`, `playOneShot`, `stopSound`, `pauseSound`, `resumeSound`, `stopAllSounds`, `pauseAllSounds`, `resumeAllSounds`, `setSoundVolume`, `setPlaybackRate`, `fadeSound`, `fadeOutSound`, `setMasterVolume`, `mute`, `unmute`) handled in both renderers.
 - Re-exports of `Vec2`, `Timers`, `Tween`/`TweenManager`/`Easing`, and the circle/raycast physics helpers (all platform-agnostic).
+- **UI bridge** — declare canvas UI in JSX on React Native: `PivotButton`, `PivotUIText`, `PivotProgressBar`, `PivotCheckbox`, `PivotSlider`, `PivotJoystick` inside `<PivotNativeCanvas>`. Widget descriptors are reconciled into a real `UIManager` — directly on Expo Web, or inside the WebView on iOS/Android (touches route to the UI first; unconsumed ones still reach `onTouch`; widget events post back over the bridge). Native path requires the published ≥ 2.0.0 UMD in the WebView; older bundles no-op gracefully.
 - Re-exports of `Sound`, `SoundManager`, collision & physics utilities.
 
 ### Changed

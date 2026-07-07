@@ -5,13 +5,19 @@
 //
 
 import { createContext, useContext } from 'react';
-import type { DrawCommand, AudioCommand } from '../bridge/types';
+import type { DrawCommand, AudioCommand, UIWidgetDescriptor, UIWidgetHandlers } from '../bridge/types';
 
 export interface NativeDrawContextValue {
   /** Register a draw command for the current frame. */
   registerCommand(cmd: DrawCommand): void;
   /** Register an audio command (fire-and-forget, sent once then cleared). */
   registerAudioCommand(cmd: AudioCommand): void;
+  /**
+   * Register a UI widget for the current frame (called by PivotButton,
+   * PivotJoystick, …). The descriptor is reconciled into the renderer's
+   * UIManager; handlers receive events routed back from it.
+   */
+  registerUIWidget(desc: UIWidgetDescriptor, handlers?: UIWidgetHandlers): void;
   /** Current camera position (updated by PivotNativeCamera). */
   cameraPosition: { x: number; y: number };
   /** Update the camera position (called by PivotNativeCamera). */

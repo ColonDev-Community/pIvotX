@@ -1496,6 +1496,39 @@ All accept the same props as web React components, with one key difference:
 | `<PivotTilemap>` | `sheetSrc`, `frameWidth`, `frameHeight`, `mapData`, `tileSize`, `solidTiles` |
 | `<PivotTiledBackground>` | `src`, `canvasWidth`, `canvasHeight`, `scrollX`, `scrollY`, `parallaxFactor` |
 
+#### Native UI Components
+
+Declare canvas UI in JSX inside `<PivotNativeCanvas>` — widgets are reconciled
+into a real `UIManager` (directly on Expo Web; inside the WebView on
+iOS/Android, where touches route to the UI first and events post back over
+the bridge).
+
+```tsx
+const stick = useRef({ x: 0, y: 0 });
+
+<PivotNativeCanvas width={W} height={H}>
+  {/* ...shapes... */}
+  <PivotUIText x={16} y={14} text={`Coins: ${score}`} color="#fbbf24" />
+  <PivotProgressBar x={16} y={42} value={energy} fill="#22c55e" label="ENERGY" />
+  <PivotJoystick x={86} y={H - 96} radius={58} onMove={(v) => (stick.current = v)} />
+  <PivotButton x={W - 120} y={H - 130} text="JUMP" onClick={jump} />
+</PivotNativeCanvas>
+```
+
+| Component | Key Props |
+|---|---|
+| `<PivotButton>` | `x`, `y`, `text`, `width`, `height`, `background`, `color`, `onClick`, `disabled` |
+| `<PivotUIText>` | `x`, `y`, `text`, `color`, `font` |
+| `<PivotProgressBar>` | `x`, `y`, `value` (0–1), `width`, `height`, `fill`, `label` |
+| `<PivotCheckbox>` | `x`, `y`, `label`, `checked`, `onChange(checked)` |
+| `<PivotSlider>` | `x`, `y`, `value`, `width`, `min`, `max`, `step`, `onChange(value)` |
+| `<PivotJoystick>` | `x`, `y` (centre), `radius`, `onMove({ x, y })` — store in a ref, read in your loop |
+
+> **Native note:** the WebView loads the pIvotX UMD from the jsDelivr CDN, so
+> the UI widgets need the published `@colon-dev/pivotx` ≥ 2.0.0 there (they
+> no-op on older bundles). On Expo Web they work with your local build
+> immediately.
+
 #### `<PivotNativeCamera>`
 
 Wraps children with camera transforms. Shapes outside the camera render in screen space (HUD).

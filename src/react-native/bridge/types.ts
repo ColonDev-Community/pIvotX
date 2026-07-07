@@ -233,12 +233,55 @@ export interface UnmuteCommand {
   type: 'unmute';
 }
 
+// ── UI Widgets ─────────────────────────────────────────────────────────────────
+
+/** Widget kinds supported by the UI bridge. */
+export type UIWidgetKind =
+  | 'button'
+  | 'text'
+  | 'progress'
+  | 'checkbox'
+  | 'slider'
+  | 'joystick';
+
+/**
+ * Serializable description of one UI widget, sent RN → WebView (native) or
+ * reconciled into a local UIManager (web). Callbacks are NOT part of the
+ * descriptor — they're registered separately and invoked via UIEvent
+ * messages coming back from the renderer.
+ */
+export interface UIWidgetDescriptor {
+  /** Stable unique id (React useId). */
+  id: string;
+  kind: UIWidgetKind;
+  /** Widget props — positions, sizes, text, colours, value, etc. */
+  props: Record<string, unknown>;
+}
+
+/** Callbacks for a widget, keyed by event name. */
+export interface UIWidgetHandlers {
+  /** Button click / checkbox toggle activation. */
+  onClick?: () => void;
+  /** Checkbox (boolean) or slider (number) value change. */
+  onChange?: (value: boolean | number) => void;
+  /** Joystick move — normalized { x, y } while active, {0,0} on release. */
+  onMove?: (value: { x: number; y: number }) => void;
+}
+
 // ── Bridge Events ──────────────────────────────────────────────────────────────
 
 /** Sent from WebView → RN to notify about game events. */
 export type BridgeEvent =
   | TouchBridgeEvent
-  | GameBridgeEvent;
+  | GameBridgeEvent
+  | UIBridgeEvent;
+
+export interface UIBridgeEvent {
+  type:   'uiEvent';
+  id:     string;
+  event:  'click' | 'change' | 'move';
+  value?: unknown;
+}
 
 export interface TouchBridgeEvent {
   type:    'touch';

@@ -38,6 +38,25 @@ export type {
 export { PivotNativeCamera } from './components/NativeCamera';
 export type { PivotNativeCameraProps } from './components/NativeCamera';
 
+// UI components (canvas-rendered widgets; WebView bridge on native, direct on web)
+export {
+  PivotButton,
+  PivotUIText,
+  PivotProgressBar,
+  PivotCheckbox,
+  PivotSlider,
+  PivotJoystick,
+} from './components/ui';
+export type {
+  PivotNativeButtonProps,
+  PivotNativeUITextProps,
+  PivotNativeProgressBarProps,
+  PivotNativeCheckboxProps,
+  PivotNativeSliderProps,
+  PivotNativeJoystickProps,
+} from './components/ui';
+export type { UIWidgetKind, UIWidgetDescriptor, UIWidgetHandlers } from './bridge/types';
+
 // Hooks
 export { useNativeGameLoop }    from './hooks/useNativeGameLoop';
 export { useNativePostMessage } from './hooks/useNativePostMessage';

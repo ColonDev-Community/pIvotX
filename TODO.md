@@ -90,9 +90,12 @@ items marked ⬜ remain planned work.
   auto-draws each frame or `manual`) with `<PivotButton>`, `<PivotUIText>`,
   `<PivotProgressBar>`, `<PivotCheckbox>`, `<PivotSlider>`, `<PivotJoystick>`;
   props sync per render, `widgetRef` exposes the widget for game-loop reads.
-- ⬜ RN bridge UI commands so JSX mode gets UI on native (WebView) too —
-  needs widget serialization + WebView-side pointer routing; do together with
-  the RN-native input work.
+- ✅ RN UI bridge — `PivotButton`, `PivotUIText`, `PivotProgressBar`,
+  `PivotCheckbox`, `PivotSlider`, `PivotJoystick` declared as JSX inside
+  `<PivotNativeCanvas>`. Descriptors reconcile into a real UIManager
+  (directly on Expo Web; inside the WebView on native with UI-first touch
+  routing and events posted back). Native needs the published ≥ 2.0.0 UMD in
+  the WebView (older CDN bundles no-op gracefully).
 
 ## 6. Game utilities
 
@@ -136,6 +139,8 @@ items marked ⬜ remain planned work.
 - ✅ `pIvotX-expo` — verified: consumes `file:../pIvotX`, type-checks clean
   against v2.0.0 (all changes additive, nothing to migrate). Its CLAUDE.md now
   lists the new RN-available APIs the sample could showcase next.
-- ⬜ `pIvotX-expo` — actually showcase new APIs in a demo game (one-shot SFX,
-  fades, moving platforms; UI widgets once the RN UI bridge lands) —
-  gameplay-affecting, best done hands-on with the app running.
+- ✅ `pIvotX-expo` — new **v2 Playground** demo game (`games/playground/`,
+  card on the home screen): virtual joystick + jump button + energy bar via
+  the RN UI bridge, moving platform that carries the player, one-way ledges,
+  `maxFallSpeed`. Type-checks clean. (Audio one-shots/fades await sound
+  assets in the sample.)

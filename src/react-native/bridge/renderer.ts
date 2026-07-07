@@ -262,15 +262,27 @@ export function getBridgeRendererSource(): string {
     cameraEnd:        execCameraEnd
   };
 
+  function runCommands(commands) {
+    for (var i = 0; i < commands.length; i++) {
+      var cmd = commands[i];
+      var fn = dispatch[cmd.type];
+      if (fn) fn(cmd);
+    }
+  }
+
+  // When UI widgets exist, frames are stored and rendered by the UI rAF loop
+  // (world + UI in one pass); otherwise commands execute immediately.
+  var lastFrame = null;
+
   /**
    * Process an array of draw commands.
    * Called from RN via injectJavaScript.
    */
   window.__pivotDraw = function(commands) {
-    for (var i = 0; i < commands.length; i++) {
-      var cmd = commands[i];
-      var fn = dispatch[cmd.type];
-      if (fn) fn(cmd);
+    if (uiActive()) {
+      lastFrame = commands;
+    } else {
+      runCommands(commands);
     }
   };
 
@@ -382,31 +394,242 @@ export function getBridgeRendererSource(): string {
     }
   });
 
-  // ── Touch event forwarding ─────────────────────────────────────────────
+  // ── UI widget bridge ───────────────────────────────────────────────────
+  //
+  // Reconciles UIWidgetDescriptors from RN into a UIManager built from the
+  // UMD bundle's UI classes. Touches are routed to the UI first; unconsumed
+  // ones forward to RN as before. Requires @colon-dev/pivotx >= 2.0.0 in the
+  // WebView — older bundles simply never define the UI classes and the whole
+  // feature no-ops.
 
-  function touchList(e) {
-    var rect = canvas.getBoundingClientRect();
-    var result = [];
-    for (var i = 0; i < e.changedTouches.length; i++) {
-      var t = e.changedTouches[i];
-      result.push({ x: t.clientX - rect.left, y: t.clientY - rect.top, id: t.identifier });
-    }
-    return result;
+  var uiManager = null;
+  var uiWidgets = {};          // id -> widget instance
+  var uiJoyActive = {};        // id -> was-active flag (for the release event)
+  var uiRafId = 0;
+
+  function uiActive() {
+    return uiManager !== null;
   }
 
-  function sendTouch(action, e) {
+  function postUI(id, event, value) {
     if (window.ReactNativeWebView) {
       window.ReactNativeWebView.postMessage(JSON.stringify({
-        type: 'touch',
-        action: action,
-        touches: touchList(e)
+        type: 'uiEvent', id: id, event: event, value: value
       }));
     }
   }
 
-  canvas.addEventListener('touchstart', function(e) { e.preventDefault(); sendTouch('start', e); }, { passive: false });
-  canvas.addEventListener('touchmove',  function(e) { e.preventDefault(); sendTouch('move', e);  }, { passive: false });
-  canvas.addEventListener('touchend',   function(e) { sendTouch('end', e); });
+  function uiCreateWidget(desc) {
+    var PX = window.PivotX;
+    var p = desc.props;
+    var pos = { x: p.x || 0, y: p.y || 0 };
+    switch (desc.kind) {
+      case 'button': {
+        var style = {};
+        if (p.background) style.background = p.background;
+        if (p.color) style.color = p.color;
+        var btn = new PX.UIButton(p.text || '', pos, p.width || 140, p.height || 44, style);
+        btn.onClick = function() { postUI(desc.id, 'click'); };
+        return btn;
+      }
+      case 'text':
+        return new PX.UIText(p.text || '', pos, { color: p.color, font: p.font });
+      case 'progress':
+        return new PX.UIProgressBar(pos, p.width || 200, p.height || 20, {
+          fill: p.fill, background: p.background, label: p.label,
+          value: typeof p.value === 'number' ? p.value : 1
+        });
+      case 'checkbox': {
+        var box = new PX.UICheckbox(p.label || '', pos, { checked: p.checked === true });
+        box.onChange = function(checked) { postUI(desc.id, 'change', checked); };
+        return box;
+      }
+      case 'slider': {
+        var slider = new PX.UISlider(pos, p.width || 180, {
+          value: p.value, min: p.min, max: p.max, step: p.step
+        });
+        slider.onChange = function(v) { postUI(desc.id, 'change', v); };
+        return slider;
+      }
+      case 'joystick':
+        return new PX.UIJoystick(pos, p.radius || 60);
+    }
+    return null;
+  }
+
+  function uiUpdateWidget(w, desc) {
+    var p = desc.props;
+    if (desc.kind === 'joystick') {
+      if (w.center.x !== (p.x || 0) || w.center.y !== (p.y || 0)) {
+        w.center = { x: p.x || 0, y: p.y || 0 };
+      }
+      if (p.radius) w.radius = p.radius;
+    } else {
+      w.position.x = p.x || 0;
+      w.position.y = p.y || 0;
+    }
+    if (desc.kind === 'button') {
+      w.text = p.text || '';
+      if (p.width) w.width = p.width;
+      if (p.height) w.height = p.height;
+      if (p.background) w.style.background = p.background;
+      if (p.color) w.style.color = p.color;
+    } else if (desc.kind === 'text') {
+      w.text = p.text || '';
+      if (p.color) w.color = p.color;
+      if (p.font) w.font = p.font;
+    } else if (desc.kind === 'progress') {
+      if (typeof p.value === 'number') w.value = p.value;
+      if (p.width) w.width = p.width;
+      if (p.fill) w.fill = p.fill;
+      if (p.label != null) w.label = p.label;
+    } else if (desc.kind === 'checkbox') {
+      w.label = p.label || '';
+      w.checked = p.checked === true;
+    } else if (desc.kind === 'slider') {
+      if (p.width) w.width = p.width;
+      if (typeof p.min === 'number') w.min = p.min;
+      if (typeof p.max === 'number') w.max = p.max;
+      if (typeof p.step === 'number') w.step = p.step;
+      if (!w.pressed && typeof p.value === 'number') w.value = p.value;
+    }
+    w.visible = p.visible !== false;
+    if (desc.kind !== 'text' && desc.kind !== 'progress') {
+      w.enabled = p.disabled !== true;
+    }
+  }
+
+  function uiFrame() {
+    if (!uiManager) return;
+    if (lastFrame) runCommands(lastFrame);
+    else execClear();
+    uiManager.draw(ctx);
+
+    // Joystick move events (throttled naturally to the frame rate)
+    for (var id in uiWidgets) {
+      var w = uiWidgets[id];
+      if (w.tag === 'ui-joystick') {
+        if (w.active) {
+          postUI(id, 'move', { x: w.value.x, y: w.value.y });
+          uiJoyActive[id] = true;
+        } else if (uiJoyActive[id]) {
+          postUI(id, 'move', { x: 0, y: 0 });
+          uiJoyActive[id] = false;
+        }
+      }
+    }
+    uiRafId = requestAnimationFrame(uiFrame);
+  }
+
+  /**
+   * Reconcile UI widget descriptors sent from RN.
+   * No-ops when the loaded PivotX bundle predates the UI engine (< 2.0.0).
+   */
+  window.__pivotUI = function(descs) {
+    var PX = window.PivotX;
+    if (!PX || !PX.UIManager) return;
+
+    if (!uiManager && descs.length > 0) {
+      uiManager = new PX.UIManager();   // no canvas: touches routed manually below
+      uiRafId = requestAnimationFrame(uiFrame);
+    }
+    if (!uiManager) return;
+
+    var seen = {};
+    for (var i = 0; i < descs.length; i++) {
+      var desc = descs[i];
+      seen[desc.id] = true;
+      var w = uiWidgets[desc.id];
+      if (!w) {
+        w = uiCreateWidget(desc);
+        if (!w) continue;
+        uiWidgets[desc.id] = w;
+        uiManager.add(w);
+      }
+      uiUpdateWidget(w, desc);
+    }
+    for (var wid in uiWidgets) {
+      if (!seen[wid]) {
+        uiManager.remove(uiWidgets[wid]);
+        delete uiWidgets[wid];
+        delete uiJoyActive[wid];
+      }
+    }
+
+    // Everything unmounted: stop the UI loop and return to direct drawing
+    if (descs.length === 0) {
+      cancelAnimationFrame(uiRafId);
+      uiManager = null;
+      lastFrame = null;
+    }
+  };
+
+  // ── Touch event forwarding ─────────────────────────────────────────────
+
+  var uiCapturedTouches = {};   // touch identifier -> captured by UI
+
+  function touchPos(t) {
+    var rect = canvas.getBoundingClientRect();
+    return {
+      x: (t.clientX - rect.left) * (canvas.width / rect.width),
+      y: (t.clientY - rect.top) * (canvas.height / rect.height),
+      id: t.identifier
+    };
+  }
+
+  function sendTouch(action, touches) {
+    if (window.ReactNativeWebView && touches.length > 0) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'touch',
+        action: action,
+        touches: touches
+      }));
+    }
+  }
+
+  canvas.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    var forward = [];
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var p = touchPos(e.changedTouches[i]);
+      if (uiManager && uiManager.pointerDown(p.id, p.x, p.y)) {
+        uiCapturedTouches[p.id] = true;   // UI consumed it — don't forward
+      } else {
+        forward.push(p);
+      }
+    }
+    sendTouch('start', forward);
+  }, { passive: false });
+
+  canvas.addEventListener('touchmove', function(e) {
+    e.preventDefault();
+    var forward = [];
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var p = touchPos(e.changedTouches[i]);
+      if (uiCapturedTouches[p.id]) {
+        if (uiManager) uiManager.pointerMove(p.id, p.x, p.y);
+      } else {
+        forward.push(p);
+      }
+    }
+    sendTouch('move', forward);
+  }, { passive: false });
+
+  function onTouchEnd(e) {
+    var forward = [];
+    for (var i = 0; i < e.changedTouches.length; i++) {
+      var p = touchPos(e.changedTouches[i]);
+      if (uiCapturedTouches[p.id]) {
+        if (uiManager) uiManager.pointerUp(p.id, p.x, p.y);
+        delete uiCapturedTouches[p.id];
+      } else {
+        forward.push(p);
+      }
+    }
+    sendTouch('end', forward);
+  }
+  canvas.addEventListener('touchend', onTouchEnd);
+  canvas.addEventListener('touchcancel', onTouchEnd);
 
 })();
 `;
