@@ -5,8 +5,14 @@
 //
 
 import { getBridgeRendererSource } from './renderer';
+import { PIVOTX_VERSION } from './version';
 
-const CDN_URL = 'https://cdn.jsdelivr.net/npm/@colon-dev/pivotx/dist/pivotx.umd.min.js';
+// Version-pinned: the unversioned jsDelivr URL resolves through a long-lived
+// cache and can serve a stale major (observed serving 1.0.1 after 2.0.1's
+// release — silently disabling the UI/sound bridges). Pinning to the exact
+// installed version keeps the WebView bundle immutable-cacheable and always
+// consistent with the React Native side.
+const CDN_URL = `https://cdn.jsdelivr.net/npm/@colon-dev/pivotx@${PIVOTX_VERSION}/dist/pivotx.umd.min.js`;
 
 /**
  * Generate the full HTML string for the WebView.

@@ -2,7 +2,7 @@
   "name": "@colon-dev/pivotx",
   "type": "module",
   "version": "2.0.2",
-  "description": "Lightweight 2D game development library — Vanilla JS, TypeScript, React & React Native / Expo",
+  "description": "Lightweight 2D game development library \u2014 Vanilla JS, TypeScript, React & React Native / Expo",
   "author": "sachithamh@gmail.com",
   "license": "MIT",
   "homepage": "https://pivotx.colondev.com/",
@@ -73,7 +73,8 @@
     "lint:fix": "eslint src/ --fix",
     "test": "npm run build && node --test tests/*.test.mjs",
     "test:only": "node --test tests/*.test.mjs",
-    "prepublishOnly": "npm run lint && npm run type-check && npm run build"
+    "prepublishOnly": "node scripts/sync-version.cjs && npm run lint && npm run type-check && npm run build",
+    "version": "node scripts/sync-version.cjs && git add src/react-native/bridge/version.ts"
   },
   "peerDependencies": {
     "react": ">=17.0.0",
