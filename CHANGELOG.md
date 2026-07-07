@@ -5,6 +5,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.0.3] — 2026-07-07
+
+### Fixed
+
+- **WebView startup race dropped the UI and sound loads on devices.** The RN flush effect injects into the WebView immediately on mount — before the page and engine have loaded — so the first UI payload and the one-shot `loadSound` commands fell into the void, and the UI dirty-check then believed the widgets were already delivered (on-screen controllers never appeared unless the UI JSON later changed). The canvas now resyncs on the WebView's `onLoadEnd`: it replays the recorded sound loads and the last known UI state. Draw/audio injections are also guarded so pre-load injections no longer throw.
+
+---
+
 ## [2.0.2] — 2026-07-07
 
 ### Security (React Native WebView bridge hardening)

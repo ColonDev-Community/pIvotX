@@ -25,6 +25,7 @@ declare module 'react-native-webview' {
     originWhitelist?:   string[];
     javaScriptEnabled?: boolean;
     onMessage?:         (event: WebViewMessageEvent) => void;
+    onLoadEnd?:         () => void;
     allowFileAccess?:   boolean;
     mixedContentMode?:  'never' | 'always' | 'compatibility';
     children?:          React.ReactNode;
