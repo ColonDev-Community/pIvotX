@@ -644,6 +644,22 @@ export function getBridgeRendererSource(): string {
 
   var uiCapturedTouches = {};   // touch identifier -> captured by UI
 
+  // Web Audio unlock: the AudioContext must be resumed from inside a real
+  // user-gesture handler in the WebView (commands injected from RN don't
+  // count). First touch unlocks it for the whole session.
+  var audioUnlocked = false;
+  function unlockAudio() {
+    if (audioUnlocked) return;
+    var PX = window.PivotX;
+    if (PX && PX.Sound) {
+      try {
+        var actx = PX.Sound.getAudioContext();
+        if (actx.state === 'suspended') actx.resume();
+        audioUnlocked = true;
+      } catch (e) { /* not fatal — retried on next touch */ audioUnlocked = false; }
+    }
+  }
+
   function touchPos(t) {
     var rect = canvas.getBoundingClientRect();
     return {
@@ -665,6 +681,7 @@ export function getBridgeRendererSource(): string {
 
   canvas.addEventListener('touchstart', function(e) {
     e.preventDefault();
+    unlockAudio();
     var forward = [];
     for (var i = 0; i < e.changedTouches.length; i++) {
       var p = touchPos(e.changedTouches[i]);

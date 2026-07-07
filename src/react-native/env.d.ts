@@ -26,6 +26,7 @@ declare module 'react-native-webview' {
     javaScriptEnabled?: boolean;
     onMessage?:         (event: WebViewMessageEvent) => void;
     onLoadEnd?:         () => void;
+    mediaPlaybackRequiresUserGesture?: boolean;
     allowFileAccess?:   boolean;
     mixedContentMode?:  'never' | 'always' | 'compatibility';
     children?:          React.ReactNode;

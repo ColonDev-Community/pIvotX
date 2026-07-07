@@ -429,6 +429,7 @@ const NativeWebViewCanvas = forwardRef<
         javaScriptEnabled={true}
         onMessage={handleMessage}
         onLoadEnd={handleLoadEnd}
+        mediaPlaybackRequiresUserGesture={false}
         allowFileAccess={allowFileAccess}
         mixedContentMode={mixedContentMode}
       />
