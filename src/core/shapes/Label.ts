@@ -55,6 +55,18 @@ export class Label implements IDrawable {
     return wrapped;
   }
 
+  /** Font size in px parsed from the CSS font string (linear scan, no regex). */
+  private _fontSizePx(): number {
+    for (const part of this.font.split(' ')) {
+      // Matches '16px', '16.5px', and the '14px/1.2' shorthand
+      if (part.endsWith('px') || part.includes('px/')) {
+        const n = parseFloat(part);
+        if (!Number.isNaN(n) && n > 0) return n;
+      }
+    }
+    return 16;
+  }
+
   draw(ctx: CanvasRenderingContext2D): void {
     ctx.font         = this.font;
     ctx.fillStyle    = this.fillColor;
@@ -62,8 +74,7 @@ export class Label implements IDrawable {
     ctx.textBaseline = this.textBaseline;
 
     const lines = this._wrapLines(ctx);
-    const fontSize = parseFloat(this.font.match(/(\d+(?:\.\d+)?)px/)?.[1] ?? '') || 16;
-    const lineHeight = this.lineHeight ?? fontSize * 1.25;
+    const lineHeight = this.lineHeight ?? this._fontSizePx() * 1.25;
 
     if (this.strokeColor) {
       ctx.strokeStyle = this.strokeColor;
