@@ -8,8 +8,9 @@
 // where they're handled by __pivotAudio / UMD SoundManager.
 //
 
-import { useMemo } from 'react';
-import { useNativeDrawContext } from '../context/NativeDrawContext';
+import { useContext, useMemo } from 'react';
+import { NativeDrawContext } from '../context/NativeDrawContext';
+import { enqueueGlobalAudio } from '../audio/globalAudioQueue';
 
 export interface UseNativeSoundControls {
   /** Queue a sound to be loaded inside the canvas. Call early (e.g. first render). */
@@ -67,7 +68,11 @@ export interface UseNativeSoundControls {
  * }
  */
 export function useNativeSound(): UseNativeSoundControls {
-  const { registerAudioCommand } = useNativeDrawContext();
+  // Works inside OR outside <PivotNativeCanvas>: inside, commands go to the
+  // canvas's own queue; outside, to a global queue that any mounted canvas
+  // drains on its next flush.
+  const ctx = useContext(NativeDrawContext);
+  const registerAudioCommand = ctx?.registerAudioCommand ?? enqueueGlobalAudio;
 
   return useMemo<UseNativeSoundControls>(() => ({
     loadSound:      (name, src) => registerAudioCommand({ type: 'loadSound', name, src }),

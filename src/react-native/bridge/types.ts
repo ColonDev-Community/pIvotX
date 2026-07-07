@@ -320,6 +320,26 @@ export interface PivotNativeCanvasProps {
   style?:     Record<string, unknown>;
   /** Children — PivotNative* shape components. */
   children?:  React.ReactNode;
+
+  // ── WebView hardening (native only) ────────────────────────────────────
+  /**
+   * Allow the WebView to load file:// URLs (needed for bundled local
+   * assets on some setups). Default true for backwards compatibility —
+   * set false if your game only uses http(s)/bundled-over-Metro assets.
+   */
+  allowFileAccess?: boolean;
+  /**
+   * WebView mixed-content policy (Android). Default 'always' so http
+   * assets (e.g. the Metro dev server) load; tighten to 'never' for
+   * production builds that only use https assets.
+   */
+  mixedContentMode?: 'never' | 'always' | 'compatibility';
+  /**
+   * Origins the WebView may navigate to. Default ['*'] for backwards
+   * compatibility; restrict (e.g. ['about:blank']) if your game never
+   * navigates.
+   */
+  originWhitelist?: string[];
 }
 
 export interface PivotNativeCanvasHandle {

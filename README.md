@@ -1463,6 +1463,8 @@ Import from `@colon-dev/pivotx/react-native`. Requires `react-native-webview` as
 
 **Platform support:** Components work identically on iOS, Android, and Expo Web. `PivotNativeCanvas` automatically detects the platform via `Platform.OS` and switches between WebView rendering (native) and direct `<canvas>` rendering (web).
 
+**Security note:** the native renderer is a WebView bridge, so the component intentionally exposes code-execution primitives — `script` mode and `injectScript()` run whatever JavaScript you pass them (same trust model as `react-native-webview`'s `injectJavaScript`). Only pass code and props you control; never interpolate untrusted user input into `script`. Template interpolations are hardened (dimensions coerced, background CSS-validated, `</script>` breakout escaped, injected JSON sanitized), and the WebView policies are configurable via `allowFileAccess`, `mixedContentMode`, and `originWhitelist` props — tighten them for production builds (e.g. `mixedContentMode="never"` when all assets are https).
+
 #### `<PivotNativeCanvas>`
 
 Root component. Renders a WebView (native) or a direct HTML5 Canvas (Expo Web) with the full pIvotX engine.

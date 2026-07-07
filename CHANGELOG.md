@@ -5,6 +5,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.0.2] — 2026-07-07
+
+### Security (React Native WebView bridge hardening)
+
+- `generateHTML` interpolations hardened: `width`/`height` coerced to positive integers, `background` validated as a plausible CSS colour (markup breakout impossible), and script-mode code escaped against `</script>` element termination.
+- JSON injected into the WebView (`__pivotDraw`/`__pivotUI`/`__pivotAudio`) now escapes U+2028/U+2029, which are valid in JSON strings but line terminators in JavaScript source on older engines.
+- WebView policies are now configurable props with unchanged defaults: `allowFileAccess` (default `true`), `mixedContentMode` (default `'always'`), `originWhitelist` (default `['*']`) — tighten them for production builds.
+- README security note documenting the trust model of `script` mode / `injectScript()` (same class as `react-native-webview`'s `injectJavaScript`: only run code you control).
+- Removed the only dynamic-execution site in the library: `injectScript()`'s web fallback used `new Function` (flagged by supply-chain scanners, blocked by CSP without `unsafe-eval`, and documented as "not fully supported" anyway). It now warns and no-ops on web; the native WebView path is unchanged.
+
+### Fixed
+
+- `useNativeSound()` threw "Native shape components must be inside \<PivotNativeCanvas\>" when called from the component that *renders* the canvas (the natural place to call it). The hook is now context-optional: outside the canvas, commands go to a global queue that any mounted canvas drains on its next flush.
+- The WebView loaded the pIvotX UMD from the **unversioned** jsDelivr URL, which serves from a long-lived cache — observed serving v1.0.1 after 2.0.1's release, silently disabling the UI, input, and sound bridges on devices (no joystick, no widgets, no audio). The URL is now pinned to the exact installed version via a generated `version.ts` kept in sync by the npm `version`/`prepublishOnly` lifecycle.
+
+---
+
 ## [2.0.1] — 2026-07-07
 
 ### Fixed

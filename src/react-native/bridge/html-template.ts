@@ -5,8 +5,14 @@
 //
 
 import { getBridgeRendererSource } from './renderer';
+import { PIVOTX_VERSION } from './version';
 
-const CDN_URL = 'https://cdn.jsdelivr.net/npm/@colon-dev/pivotx/dist/pivotx.umd.min.js';
+// Version-pinned: the unversioned jsDelivr URL resolves through a long-lived
+// cache and can serve a stale major (observed serving 1.0.1 after 2.0.1's
+// release — silently disabling the UI/sound bridges). Pinning to the exact
+// installed version keeps the WebView bundle immutable-cacheable and always
+// consistent with the React Native side.
+const CDN_URL = `https://cdn.jsdelivr.net/npm/@colon-dev/pivotx@${PIVOTX_VERSION}/dist/pivotx.umd.min.js`;
 
 /**
  * Generate the full HTML string for the WebView.
@@ -24,6 +30,14 @@ export function generateHTML(
 ): string {
   const bridgeJS = getBridgeRendererSource();
 
+  // Harden interpolations: dimensions must be positive integers, the
+  // background must be a plausible CSS colour (no markup breakout), and the
+  // game script must not be able to terminate its own <script> element.
+  const safeWidth = Math.max(1, Math.floor(Number(width) || 0)) || 400;
+  const safeHeight = Math.max(1, Math.floor(Number(height) || 0)) || 300;
+  const safeBackground = /^[#a-zA-Z0-9(),.%\s-]*$/.test(background) ? background : '#000';
+  const safeScript = script ? script.replace(/<\/script/gi, '<\\/script') : undefined;
+
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -31,15 +45,15 @@ export function generateHTML(
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-html,body{width:100%;height:100%;overflow:hidden;background:${background};touch-action:none;}
+html,body{width:100%;height:100%;overflow:hidden;background:${safeBackground};touch-action:none;}
 canvas{display:block;}
 </style>
 </head>
 <body>
-<canvas id="game" width="${width}" height="${height}"></canvas>
+<canvas id="game" width="${safeWidth}" height="${safeHeight}"></canvas>
 <script src="${CDN_URL}"></script>
 <script>${bridgeJS}</script>
-${script ? `<script>${script}</script>` : ''}
+${safeScript ? `<script>${safeScript}</script>` : ''}
 </body>
 </html>`;
 }

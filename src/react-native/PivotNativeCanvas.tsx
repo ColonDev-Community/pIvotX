@@ -39,6 +39,14 @@ import { executeCommands, executeAudioCommands } from './web/executeCommands';
 import { UIManager } from '../core/ui/UIManager';
 import { reconcileUI, createUIReconcilerState } from './web/uiReconciler';
 import { nativeInputStore } from './input/nativeInputStore';
+import { drainGlobalAudio } from './audio/globalAudioQueue';
+
+// U+2028/U+2029 are valid inside JSON strings but are line terminators in
+// JavaScript source on older engines — escape them so injected JSON can never
+// break out of the injectJavaScript statement.
+function toJsSource(json: string): string {
+  return json.replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+}
 
 // ─── Shared command collection logic ─────────────────────────────────────────
 
@@ -122,8 +130,14 @@ const WebCanvas = forwardRef<
 
   useImperativeHandle(ref, () => ({
     postMessage() { /* no-op on web */ },
-    injectScript(js: string) {
-      try { new Function(js)(); } catch { /* script mode not fully supported on web */ }
+    injectScript() {
+      // Deliberately unsupported on web: the native implementation delegates
+      // to the WebView's injectJavaScript, but a web equivalent would need
+      // dynamic code execution — a CSP blocker and a supply-chain red flag.
+      // Use JSX mode (or platform checks) for web builds.
+      console.warn(
+        'pIvotX: injectScript targets the native WebView and is a no-op on web — use JSX mode instead.',
+      );
     },
   }));
 
@@ -148,8 +162,9 @@ const WebCanvas = forwardRef<
       ui.draw(ctx);
     }
 
-    // Flush audio commands (one-shot, then clear)
-    const audioCmds = audioCommandsRef.current;
+    // Flush audio commands (one-shot, then clear) — including any enqueued
+    // by useNativeSound outside the canvas
+    const audioCmds = [...audioCommandsRef.current, ...drainGlobalAudio()];
     if (audioCmds.length > 0) {
       executeAudioCommands(audioCmds);
       audioCommandsRef.current = [];
@@ -264,6 +279,9 @@ const NativeWebViewCanvas = forwardRef<
     onGameEvent,
     onTouch,
     worldSpaceTouch = false,
+    allowFileAccess = true,
+    mixedContentMode = 'always',
+    originWhitelist = ['*'],
     style,
     children,
   },
@@ -290,13 +308,15 @@ const NativeWebViewCanvas = forwardRef<
   useEffect(() => {
     const cmds = commandsRef.current;
     const hasUI = uiWidgetsRef.current.length > 0 || lastUIJsonRef.current !== '';
+    const globalAudio = drainGlobalAudio();
+    if (globalAudio.length > 0) audioCommandsRef.current.push(...globalAudio);
     if (cmds.length === 0 && audioCommandsRef.current.length === 0 && !hasUI) return;
 
     if (cmds.length > 0) {
       const frame: DrawCommand[] = [{ type: 'clear' }, ...cmds];
       const json = JSON.stringify(frame);
       webViewRef.current?.injectJavaScript(
-        `window.__pivotDraw(${json}); true;`,
+        `window.__pivotDraw(${toJsSource(json)}); true;`,
       );
     }
 
@@ -307,7 +327,7 @@ const NativeWebViewCanvas = forwardRef<
       if (uiJson !== lastUIJsonRef.current) {
         lastUIJsonRef.current = uiJson === '[]' ? '' : uiJson;
         webViewRef.current?.injectJavaScript(
-          `if (window.__pivotUI) window.__pivotUI(${uiJson}); true;`,
+          `if (window.__pivotUI) window.__pivotUI(${toJsSource(uiJson)}); true;`,
         );
       }
     }
@@ -317,7 +337,7 @@ const NativeWebViewCanvas = forwardRef<
     if (audioCmds.length > 0) {
       const audioJson = JSON.stringify(audioCmds);
       webViewRef.current?.injectJavaScript(
-        `window.__pivotAudio(${audioJson}); true;`,
+        `window.__pivotAudio(${toJsSource(audioJson)}); true;`,
       );
       audioCommandsRef.current = [];
     }
@@ -377,11 +397,11 @@ const NativeWebViewCanvas = forwardRef<
         style={[{ width, height }, style as Record<string, unknown>]}
         scrollEnabled={false}
         bounces={false}
-        originWhitelist={['*']}
+        originWhitelist={originWhitelist}
         javaScriptEnabled={true}
         onMessage={handleMessage}
-        allowFileAccess={true}
-        mixedContentMode="always"
+        allowFileAccess={allowFileAccess}
+        mixedContentMode={mixedContentMode}
       />
       {children}
     </NativeDrawContext.Provider>
