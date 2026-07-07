@@ -68,9 +68,12 @@ items marked ⬜ remain planned work.
   `InputMap.bind('jump', ['space', 'gamepad:a'])`.
 - ✅ React hooks — `useKeyPressed(key)` and `useGamepadConnected()` (reactive,
   for menus/HUDs), plus `useUIManager(canvasRef, setup)`.
-- ⬜ RN native hardware keyboard/controller events — requires native modules
-  (e.g. a game-controller package) beyond this library's WebView bridge;
-  out of scope for v2.0.0.
+- ✅ RN hardware keyboard/controller events — **`NativeInput`**: it turned out
+  no native module is needed. Bluetooth/USB keyboards and controllers deliver
+  DOM events to the WebView, so key events and Gamepad-API state are forwarded
+  over the bridge (change-diffed, so idle controllers cost nothing). One API on
+  web and native: `isKeyDown`, `keyAxis`, `gamepadConnected`, `isButtonDown`,
+  `getStick`. Held-state only — `justPressed` edges via previous-frame compare.
 
 ## 5. UI engine
 
@@ -142,5 +145,10 @@ items marked ⬜ remain planned work.
 - ✅ `pIvotX-expo` — new **v2 Playground** demo game (`games/playground/`,
   card on the home screen): virtual joystick + jump button + energy bar via
   the RN UI bridge, moving platform that carries the player, one-way ledges,
-  `maxFallSpeed`. Type-checks clean. (Audio one-shots/fades await sound
-  assets in the sample.)
+  `maxFallSpeed`, jump one-shot SFX with random pitch (`assets/sfx/jump.mp3`
+  via `useNativeSound`), and hardware keyboard/controller movement via
+  `NativeInput`. Type-checks clean.
+
+**Everything on this roadmap is now complete.** Post-2.0.0 ideas live in the
+sections above as normal feature work (e.g. sound bus sprite maps at manager
+level, UI focus theming, swept-circle integration into stepBody).

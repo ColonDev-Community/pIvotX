@@ -1529,6 +1529,34 @@ const stick = useRef({ x: 0, y: 0 });
 > no-op on older bundles). On Expo Web they work with your local build
 > immediately.
 
+#### `NativeInput` — hardware keyboard & controllers
+
+Bluetooth/USB keyboards and game controllers work on **web and native** with
+one API — on iOS/Android their events reach the WebView's DOM and are
+forwarded over the bridge, no native module required.
+
+```tsx
+import { NativeInput, useNativeGameLoop } from '@colon-dev/pivotx/react-native';
+
+useNativeGameLoop((dt) => {
+  player.vx = 240 * NativeInput.keyAxis('horizontal');     // arrows + WASD
+  const stick = NativeInput.getStick('left');              // controller stick
+  if (NativeInput.isKeyDown('space') || NativeInput.isButtonDown('a')) jump();
+});
+```
+
+| Method | Description |
+|---|---|
+| `NativeInput.isKeyDown(key)` | True while a key is held (same names as `Keyboard`) |
+| `NativeInput.keyAxis(axis)` | `'horizontal'` / `'vertical'` → -1..1 (arrows + WASD) |
+| `NativeInput.gamepadConnected` | True if a controller is connected |
+| `NativeInput.isButtonDown(btn)` | Standard-mapping names (`'a'`, `'start'`, …) or index |
+| `NativeInput.getStick(side)` | Dead-zoned stick `{ x, y }` (`deadZone` configurable) |
+
+Held-state only — for `justPressed` edges, compare against the previous
+frame in your loop. On native, requires `<PivotNativeCanvas>` to be mounted
+(and the ≥ 2.0.0 UMD, as above).
+
 #### `<PivotNativeCamera>`
 
 Wraps children with camera transforms. Shapes outside the camera render in screen space (HUD).

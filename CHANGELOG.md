@@ -84,6 +84,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **Audio command bridge** — 16 `AudioCommand` types (`loadSound`, `playSound`, `playOneShot`, `stopSound`, `pauseSound`, `resumeSound`, `stopAllSounds`, `pauseAllSounds`, `resumeAllSounds`, `setSoundVolume`, `setPlaybackRate`, `fadeSound`, `fadeOutSound`, `setMasterVolume`, `mute`, `unmute`) handled in both renderers.
 - Re-exports of `Vec2`, `Timers`, `Tween`/`TweenManager`/`Easing`, and the circle/raycast physics helpers (all platform-agnostic).
 - **UI bridge** — declare canvas UI in JSX on React Native: `PivotButton`, `PivotUIText`, `PivotProgressBar`, `PivotCheckbox`, `PivotSlider`, `PivotJoystick` inside `<PivotNativeCanvas>`. Widget descriptors are reconciled into a real `UIManager` — directly on Expo Web, or inside the WebView on iOS/Android (touches route to the UI first; unconsumed ones still reach `onTouch`; widget events post back over the bridge). Native path requires the published ≥ 2.0.0 UMD in the WebView; older bundles no-op gracefully.
+- **NativeInput** — hardware keyboard & game-controller queries with one API on web AND native: `isKeyDown`, `keyAxis` (arrows + WASD), `gamepadConnected`, `isButtonDown`, `getStick` with dead-zone. On iOS/Android, key events and Gamepad-API state from the WebView's DOM are forwarded over the bridge — no native module needed.
 - Re-exports of `Sound`, `SoundManager`, collision & physics utilities.
 
 ### Changed

@@ -82,6 +82,9 @@ export { circlesOverlap, circleAABBOverlap, circleAABBResolve, raycastAABB, rayc
 export type { CollisionCircle, RaycastHit } from '../core/physics/shapes';
 export { SpatialHash } from '../core/physics/SpatialHash';
 
+// Hardware input (keyboard + controller) — unified across native & web
+export { NativeInput } from './input/NativeInput';
+
 // Re-export platform-agnostic game utilities
 export { Vec2 }   from '../core/math/Vec2';
 export { Timers } from '../core/time/Timers';

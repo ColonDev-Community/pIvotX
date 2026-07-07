@@ -38,6 +38,7 @@ import type {
 import { executeCommands, executeAudioCommands } from './web/executeCommands';
 import { UIManager } from '../core/ui/UIManager';
 import { reconcileUI, createUIReconcilerState } from './web/uiReconciler';
+import { nativeInputStore } from './input/nativeInputStore';
 
 // ─── Shared command collection logic ─────────────────────────────────────────
 
@@ -347,6 +348,10 @@ const NativeWebViewCanvas = forwardRef<
             else if (msg.event === 'change') handlers.onChange?.(msg.value);
             else if (msg.event === 'move') handlers.onMove?.(msg.value);
           }
+        } else if (msg.type === 'keyEvent') {
+          nativeInputStore.applyKeyEvent(msg.action, msg.code);
+        } else if (msg.type === 'gamepadState') {
+          nativeInputStore.applyGamepadState(msg.connected, msg.buttons, msg.axes);
         }
       } catch {
         // Ignore unparseable messages

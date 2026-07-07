@@ -564,6 +564,82 @@ export function getBridgeRendererSource(): string {
     }
   };
 
+  // ── Hardware input forwarding (keyboard + gamepad) ─────────────────────
+  //
+  // Bluetooth/USB keyboards and controllers deliver events to the WebView's
+  // DOM, so they can be forwarded to RN without any native module. RN's
+  // NativeInput mirrors this state for game code.
+
+  window.addEventListener('keydown', function(e) {
+    if (e.repeat) return;
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'keyEvent', action: 'down', code: e.code
+      }));
+    }
+  });
+  window.addEventListener('keyup', function(e) {
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'keyEvent', action: 'up', code: e.code
+      }));
+    }
+  });
+
+  var padPolling = false;
+  var lastPadJson = '';
+
+  function pollGamepad() {
+    var pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    var pad = null;
+    for (var i = 0; i < pads.length; i++) {
+      if (pads[i] && pads[i].connected) { pad = pads[i]; break; }
+    }
+
+    var state = null;
+    if (pad) {
+      var buttons = [];
+      for (var b = 0; b < pad.buttons.length; b++) {
+        if (pad.buttons[b].pressed) buttons.push(b);
+      }
+      var axes = [];
+      for (var a = 0; a < pad.axes.length && a < 4; a++) {
+        axes.push(Math.round(pad.axes[a] * 100) / 100);
+      }
+      state = { connected: true, buttons: buttons, axes: axes };
+    } else {
+      state = { connected: false, buttons: [], axes: [] };
+    }
+
+    // Only post when something changed — idle controllers cost nothing
+    var json = JSON.stringify(state);
+    if (json !== lastPadJson) {
+      lastPadJson = json;
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: 'gamepadState',
+          connected: state.connected,
+          buttons: state.buttons,
+          axes: state.axes
+        }));
+      }
+    }
+
+    if (state.connected || padPolling) {
+      requestAnimationFrame(pollGamepad);
+    }
+  }
+
+  window.addEventListener('gamepadconnected', function() {
+    if (!padPolling) {
+      padPolling = true;
+      pollGamepad();
+    }
+  });
+  window.addEventListener('gamepaddisconnected', function() {
+    padPolling = false;
+  });
+
   // ── Touch event forwarding ─────────────────────────────────────────────
 
   var uiCapturedTouches = {};   // touch identifier -> captured by UI
