@@ -315,12 +315,34 @@ export function getBridgeRendererSource(): string {
         case 'resumeSound':
           SM.resume(cmd.name);
           break;
+        case 'playOneShot':
+          var osSnd = SM.getSound(cmd.name);
+          if (osSnd && osSnd.playOneShot) osSnd.playOneShot(cmd.volume);
+          break;
         case 'stopAllSounds':
           SM.stopAll();
+          break;
+        case 'pauseAllSounds':
+          if (SM.pauseAll) SM.pauseAll();
+          break;
+        case 'resumeAllSounds':
+          if (SM.resumeAll) SM.resumeAll();
           break;
         case 'setSoundVolume':
           var snd = SM.getSound(cmd.name);
           if (snd) snd.volume = cmd.volume;
+          break;
+        case 'setPlaybackRate':
+          var rateSnd = SM.getSound(cmd.name);
+          if (rateSnd) rateSnd.playbackRate = cmd.rate;
+          break;
+        case 'fadeSound':
+          var fadeSnd = SM.getSound(cmd.name);
+          if (fadeSnd && fadeSnd.fadeTo) fadeSnd.fadeTo(cmd.volume, cmd.seconds);
+          break;
+        case 'fadeOutSound':
+          var foSnd = SM.getSound(cmd.name);
+          if (foSnd && foSnd.fadeOut) foSnd.fadeOut(cmd.seconds);
           break;
         case 'setMasterVolume':
           SM.masterVolume = cmd.volume;

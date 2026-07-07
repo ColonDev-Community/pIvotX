@@ -74,7 +74,9 @@ export class Sprite implements IDrawable {
   /** Current frame index (wraps around if set beyond totalFrames). */
   get frame(): number { return this._frame; }
   set frame(f: number) {
-    this._frame = ((f % this._sheet.totalFrames) + this._sheet.totalFrames) % this._sheet.totalFrames;
+    const total = this._sheet.totalFrames;
+    if (total <= 0) { this._frame = 0; return; }
+    this._frame = ((f % total) + total) % total;
   }
 
   /** The SpriteSheet this sprite is using. */

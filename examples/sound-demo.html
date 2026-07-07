@@ -28,7 +28,7 @@
     // ── Synthesise simple sounds using Web Audio API ──────────────────────
     // (In a real game you'd load .mp3/.ogg files via SoundManager.loadSounds)
 
-    const audioCtx = PivotX.Sound.getAudioContext();
+    const audioCtx = PivotX.SoundManager.getAudioContext();
 
     function createToneBuffer(freq, duration, type) {
       const sampleRate = audioCtx.sampleRate;

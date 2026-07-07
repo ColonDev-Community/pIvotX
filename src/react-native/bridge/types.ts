@@ -134,11 +134,17 @@ export interface CameraEndCommand {
 export type AudioCommand =
   | LoadSoundCommand
   | PlaySoundCommand
+  | PlayOneShotCommand
   | StopSoundCommand
   | PauseSoundCommand
   | ResumeSoundCommand
   | StopAllSoundsCommand
+  | PauseAllSoundsCommand
+  | ResumeAllSoundsCommand
   | SetSoundVolumeCommand
+  | SetPlaybackRateCommand
+  | FadeSoundCommand
+  | FadeOutSoundCommand
   | SetMasterVolumeCommand
   | MuteCommand
   | UnmuteCommand;
@@ -171,8 +177,41 @@ export interface ResumeSoundCommand {
   name: string;
 }
 
+export interface PlayOneShotCommand {
+  type:     'playOneShot';
+  name:     string;
+  volume?:  number;
+}
+
 export interface StopAllSoundsCommand {
   type: 'stopAllSounds';
+}
+
+export interface PauseAllSoundsCommand {
+  type: 'pauseAllSounds';
+}
+
+export interface ResumeAllSoundsCommand {
+  type: 'resumeAllSounds';
+}
+
+export interface SetPlaybackRateCommand {
+  type: 'setPlaybackRate';
+  name: string;
+  rate: number;
+}
+
+export interface FadeSoundCommand {
+  type:    'fadeSound';
+  name:    string;
+  volume:  number;
+  seconds: number;
+}
+
+export interface FadeOutSoundCommand {
+  type:    'fadeOutSound';
+  name:    string;
+  seconds: number;
 }
 
 export interface SetSoundVolumeCommand {

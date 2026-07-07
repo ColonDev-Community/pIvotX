@@ -306,18 +306,26 @@ Wraps a `<canvas>` DOM element.
 
 ```js
 const canvas = new Canvas("myCanvasId");
+const crisp  = new Canvas("myCanvasId", { hiDPI: true });  // Retina-sharp rendering
 ```
 
 | Method | Returns | Description |
 |---|---|---|
-| `getWidth()` | `number` | Canvas width in pixels |
-| `getHeight()` | `number` | Canvas height in pixels |
+| `getWidth()` | `number` | Canvas width in logical pixels |
+| `getHeight()` | `number` | Canvas height in logical pixels |
 | `getCenter()` | `IPoint` | Centre point of the canvas |
 | `clear()` | `void` | Erase everything — call at start of each frame |
 | `add(shape)` | `void` | Draw any `IDrawable` immediately |
 | `startLoop(fn)` | `void` | Start rAF loop, `fn(dt)` called each frame |
 | `stopLoop()` | `void` | Stop the running loop |
 | `ctx` | `CanvasRenderingContext2D` | Raw 2D context for advanced use |
+| `pixelRatio` | `number` | Device-pixel ratio in use (1 unless `hiDPI`) |
+| `enableAutoResize()` | `void` | CSS-scale to fill the parent (aspect preserved, follows resizes) |
+| `disableAutoResize()` | `void` | Stop auto-resizing, restore natural size |
+
+With `{ hiDPI: true }` the backing store renders at `devicePixelRatio` while all
+your coordinates stay logical. If you also use `UIManager` or `Pointer`, keep
+input aligned with `ui.pixelRatio = canvas.pixelRatio` / `Pointer.pixelRatio = canvas.pixelRatio`.
 
 ---
 
@@ -387,6 +395,10 @@ const l = new Label("text", Point(x, y), "20px Arial");
 | `fillColor` | `string` | `"#000"` | Text colour |
 | `textAlign` | `"left" \| "center" \| "right"` | `"center"` | Horizontal anchor |
 | `textBaseline` | `"top" \| "middle" \| "bottom"` | `"middle"` | Vertical anchor |
+| `lineHeight` | `number \| null` | 1.25 × font size | Line spacing for multi-line text (`\n`) |
+| `maxWidth` | `number \| null` | `null` | Word-wrap the text to this pixel width |
+| `strokeColor` | `string \| null` | `null` | Outline colour (drawn under the fill) |
+| `strokeWidth` | `number` | `2` | Outline thickness |
 
 ---
 
@@ -590,8 +602,12 @@ canvas.startLoop((dt) => {
 
 | Method | Returns | Description |
 |---|---|---|
-| `follow(target, lerp?)` | `void` | Centre on target. `lerp` 0.05–0.15 = smooth, 1 = instant |
+| `follow(target, lerp?, dt?)` | `void` | Centre on target. `lerp` 0.05–0.15 = smooth, 1 = instant. Pass `dt` for frame-rate-independent smoothing |
+| `followWithDeadZone(target, w, h, lerp?, dt?)` | `void` | Only scroll when the target leaves a central dead-zone box |
 | `clamp(worldW, worldH)` | `void` | Prevent scrolling past world edges |
+| `shake(intensity, duration?)` | `void` | Screen shake (px, seconds) — eases out; needs `update(dt)` |
+| `setZoom(zoom, duration?)` | `void` | Set zoom, optionally animated over `duration` seconds |
+| `update(dt)` | `void` | Advance shake decay & zoom animation (call before `begin`) |
 | `begin(ctx)` | `void` | Apply camera transform (call before world drawing) |
 | `end(ctx)` | `void` | Restore screen space (call after world drawing) |
 | `worldToScreen(p)` | `IPoint` | Convert world position to screen coordinates |
@@ -801,6 +817,9 @@ interface PhysicsBody {
 interface StaticRect {
   x: number; y: number;
   w: number; h: number;
+  oneWay?: boolean;   // jump-through platform: only collides when landing from above
+  vx?: number;        // moving platform: stepBody advances it and carries
+  vy?: number;        //   bodies standing on it
 }
 ```
 
@@ -810,7 +829,9 @@ interface StaticRect {
 |---|---|---|---|
 | `gravity` | `number` | `0` | Gravity in pixels/sec² (applied to `vy`) |
 | `maxStep` | `number` | `8` | Max movement per sub-step (smaller = more accurate) |
-| `friction` | `number` | `1` | Friction multiplier applied to `vx` each frame (0–1) |
+| `friction` | `number` | `1` | Friction multiplier on `vx` (0–1), frame-rate independent (per 1/60 s) |
+| `maxFallSpeed` | `number` | — | Terminal falling velocity in pixels/sec (caps `vy`) |
+| `bounce` | `number` | `0` | Restitution 0–1: velocity kept (reversed) on impact |
 
 #### `stepBody(body, platforms, dt, options?)`
 
@@ -839,6 +860,36 @@ canvas.startLoop((dt) => {
 #### `resolveCollisions(body, platforms)`
 
 Resolve collisions for a single position (no sub-stepping). Called internally by `stepBody`, but can be used directly for custom integration.
+
+#### `stepBodyOnTilemap(body, tilemap, dt, options?)`
+
+Like `stepBody`, but collides directly against a `Tilemap`'s solid tiles with automatic broad-phase culling (only nearby tiles are checked, so huge maps stay fast).
+
+#### Circle & raycast helpers
+
+```ts
+circlesOverlap({ x, y, radius }, { x, y, radius });      // boolean
+circleAABBOverlap({ x, y, radius }, aabb);               // boolean, corners handled
+circleAABBResolve(circle, aabb);                         // pushes circle out, returns move | null
+const hit = raycastAABB(origin, dir, aabb, maxT?);       // { t, point, normal } | null
+raycastCircle(origin, dir, center, radius, maxT?);       // ray vs circle
+
+// Continuous (swept) cast — a moving circle can't tunnel at any speed
+const sweep = sweepCircleAABB(ball, { x: vx * dt, y: vy * dt }, wall.bounds);
+if (sweep) {
+  ball.x += vx * dt * sweep.t;    // move to the contact point
+  ball.y += vy * dt * sweep.t;    // then reflect off sweep.normal to bounce
+}
+```
+
+#### `SpatialHash` — broad-phase for many objects
+
+```ts
+const hash = new SpatialHash(64);          // cell size ≈ average object size
+hash.clear();                              // start of frame
+for (const e of enemies) hash.insert(e, createAABB(e.x, e.y, e.w, e.h));
+const nearby = hash.query(playerBounds);   // narrow-phase only these, not all n
+```
 
 #### `CollisionResult`
 
@@ -879,10 +930,22 @@ jumpSfx.stop();
 | `.pause()` | `void` | Pause, keeping position |
 | `.resume()` | `void` | Resume from paused position |
 | `.stop()` | `void` | Stop and reset to beginning |
+| `.playOneShot(volume?)` | `void` | Fire-and-forget overlapping playback (rapid SFX) |
+| `.playSegment(start, dur, vol?)` | `void` | Play a slice of the buffer (audio sprites) |
+| `.defineSprites(map)` | `this` | Name slices: `{ coin: [0.4, 0.5] }` — then `.playSprite('coin')` |
+| `.playSprite(name, vol?)` | `void` | Play a named sprite slice (overlapping) |
+| `.fadeTo(volume, seconds)` | `void` | Smoothly ramp volume to a target |
+| `.fadeIn(seconds, target?)` | `void` | Play from silence and fade in |
+| `.fadeOut(seconds)` | `void` | Fade to silence, then stop |
+| `.dispose()` | `void` | Stop and release buffer/audio nodes |
 | `.volume` | `number` | Gain from 0 (silent) to 1 (full) |
+| `.playbackRate` | `number` | Speed/pitch multiplier (1 = normal), live-adjustable |
+| `.pan` | `number` | Stereo pan -1 (left) to 1 (right) — cheap positional audio |
 | `.loop` | `boolean` | Whether playback repeats |
 | `.playing` | `boolean` | Whether currently playing |
+| `.paused` | `boolean` | Whether paused (resume() continues) |
 | `.duration` | `number` | Duration in seconds |
+| `.currentTime` | `number` | Current playback position in seconds |
 
 #### `SoundManager`
 
@@ -916,18 +979,274 @@ SoundManager.unmute();
 
 | Method | Return | Description |
 |---|---|---|
-| `SoundManager.loadSound(name, src)` | `Promise<Sound>` | Load a single sound |
-| `SoundManager.loadSounds(manifest)` | `Promise<Record<K, Sound>>` | Load multiple sounds in parallel |
+| `SoundManager.loadSound(name, src, opts?)` | `Promise<Sound>` | Load a single sound (`opts.group` assigns a bus) |
+| `SoundManager.loadSounds(manifest, opts?)` | `Promise<Record<K, Sound>>` | Load multiple sounds in parallel |
+| `SoundManager.setGroupVolume(group, v)` | `void` | Per-bus volume (e.g. `'sfx'` vs `'music'`) |
+| `SoundManager.getGroupVolume(group)` | `number` | Current bus volume |
 | `SoundManager.getSound(name)` | `Sound \| undefined` | Retrieve a loaded Sound |
 | `SoundManager.play(name, opts?)` | `Sound \| undefined` | Play by name (opts: `loop`, `volume`) |
 | `SoundManager.stop(name)` | `void` | Stop a named sound |
 | `SoundManager.pause(name)` | `void` | Pause a named sound |
 | `SoundManager.resume(name)` | `void` | Resume a named sound |
 | `SoundManager.stopAll()` | `void` | Stop all sounds |
+| `SoundManager.pauseAll()` | `void` | Pause every playing sound (pause menu) |
+| `SoundManager.resumeAll()` | `void` | Resume every paused sound |
+| `SoundManager.setVolume(name, v)` | `void` | Set a named sound's volume |
+| `SoundManager.unload(name)` | `void` | Dispose and remove a named sound |
+| `SoundManager.unloadAll()` | `void` | Dispose and remove every sound |
 | `SoundManager.masterVolume` | `number` | Get/set master volume (0 – 1) |
 | `SoundManager.mute()` | `void` | Mute all |
 | `SoundManager.unmute()` | `void` | Unmute all |
 | `SoundManager.muted` | `boolean` | Whether currently muted |
+
+---
+
+### Input — Keyboard & Gamepad
+
+Built-in input engines — no manual event listeners needed. The per-frame
+"just pressed / just released" states are updated automatically by
+`Canvas.startLoop` and `useGameLoop`; in a custom rAF loop call
+`updateInputs()` at the end of each frame.
+
+#### `Keyboard`
+
+```ts
+import { Keyboard } from '@colon-dev/pivotx';
+
+canvas.startLoop((dt) => {
+  player.vx = 240 * Keyboard.getAxis('horizontal');   // arrows + WASD → -1..1
+  if (Keyboard.justPressed('space') && player.grounded) player.vy = -500;
+  if (Keyboard.isDown('shift')) player.vx *= 1.8;     // sprint
+});
+```
+
+| Method | Return | Description |
+|---|---|---|
+| `Keyboard.isDown(key)` | `boolean` | True while the key is held |
+| `Keyboard.justPressed(key)` | `boolean` | True only on the frame the key went down |
+| `Keyboard.justReleased(key)` | `boolean` | True only on the frame the key was released |
+| `Keyboard.getAxis(axis)` | `number` | `'horizontal'` / `'vertical'` → -1..1 (arrows + WASD) |
+| `Keyboard.anyDown` | `boolean` | True if any key is held ("press any key" screens) |
+| `Keyboard.init()` / `.destroy()` | `void` | Eager attach / full detach (attach is automatic) |
+
+Keys accept friendly names (`'a'`, `'left'`, `'space'`, `'enter'`, `'shift'`, …)
+or raw `KeyboardEvent.code` values (`'KeyW'`, `'ArrowLeft'`, `'F1'`).
+Keys stuck by a window-focus change are released automatically.
+
+#### `GamepadInput`
+
+```ts
+import { GamepadInput } from '@colon-dev/pivotx';
+
+canvas.startLoop((dt) => {
+  const stick = GamepadInput.getStick('left');       // { x: -1..1, y: -1..1 }
+  player.vx = 240 * stick.x;
+  if (GamepadInput.justPressed('a')) player.jump();
+  if (GamepadInput.isDown('rt')) player.shoot(GamepadInput.getTrigger('rt'));
+});
+
+GamepadInput.vibrate(200, 0.8);   // rumble: 200 ms at 80 %
+```
+
+| Method | Return | Description |
+|---|---|---|
+| `GamepadInput.connected` | `boolean` | True if a controller is connected |
+| `GamepadInput.isDown(btn)` | `boolean` | True while a button is held |
+| `GamepadInput.justPressed(btn)` | `boolean` | True only on the press frame |
+| `GamepadInput.justReleased(btn)` | `boolean` | True only on the release frame |
+| `GamepadInput.getStick(side)` | `IPoint` | `'left'` / `'right'` stick with dead-zone applied |
+| `GamepadInput.getTrigger(t)` | `number` | `'lt'` / `'rt'` analogue value 0–1 |
+| `GamepadInput.vibrate(ms, strong?, weak?)` | `void` | Rumble (where supported) |
+| `GamepadInput.deadZone` | `number` | Stick dead-zone (default 0.15) |
+| `GamepadInput.raw` | `Gamepad \| null` | Raw Gamepad API object |
+
+Buttons use standard-mapping names — `'a' 'b' 'x' 'y' 'lb' 'rb' 'lt' 'rt'
+'back' 'start' 'ls' 'rs' 'up' 'down' 'left' 'right' 'home'` — or a raw index.
+
+#### `Pointer`
+
+Unified mouse/touch state on the canvas (for the game world — UI widgets are
+handled by `UIManager`). Coordinates are in canvas pixels.
+
+```ts
+import { Pointer } from '@colon-dev/pivotx';
+
+Pointer.attach(document.getElementById('game'));
+
+canvas.startLoop((dt) => {
+  if (Pointer.justPressed) shootAt(Pointer.x, Pointer.y);
+  if (Pointer.isDown)      aimAt(Pointer.x, Pointer.y);
+});
+```
+
+`Pointer.x` / `.y` / `.isDown` / `.justPressed` / `.justReleased`, plus
+`attach(canvas)` / `detach()`. Use `camera.screenToWorld()` for world coordinates.
+
+#### `InputMap` — action mapping
+
+Name actions once, bind any mix of keys and gamepad buttons, query by action —
+rebindable controls with zero physical-input references in game code.
+
+```ts
+import { InputMap } from '@colon-dev/pivotx';
+
+InputMap.bind('jump',  ['space', 'w', 'gamepad:a']);
+InputMap.bind('shoot', ['f', 'gamepad:rt']);
+
+canvas.startLoop((dt) => {
+  if (InputMap.justPressed('jump') && player.grounded) player.vy = -500;
+  if (InputMap.isDown('shoot')) fire();
+});
+```
+
+Plain strings are keyboard keys; prefix `gamepad:` for controller buttons.
+Also: `addBinding()`, `unbind()`, `getBindings()`.
+
+---
+
+### UI Engine
+
+Canvas-rendered widgets for building game UI fast — buttons, panels, HUD
+text, progress bars, and a virtual joystick for touch controls. `UIManager`
+handles pointer input (mouse + multi-touch) and draws everything with one call.
+
+```ts
+import {
+  UIManager, UIButton, UIPanel, UIText, UIProgressBar, UIJoystick, Point,
+} from '@colon-dev/pivotx';
+
+const ui = new UIManager(document.getElementById('game'));
+
+// HUD
+const hp = new UIProgressBar(Point(16, 16), 200, 20, { fill: '#22c55e', label: 'HP' });
+const score = new UIText('Score: 0', Point(16, 44), { font: 'bold 18px Arial' });
+
+// Menu panel with auto-layout
+const menu = new UIPanel(Point(220, 120), 200, 0, { layout: 'column', gap: 12 });
+const playBtn = new UIButton('Play', Point(0, 0), 168, 44);
+playBtn.onClick = () => startGame();
+menu.add(playBtn).add(new UIButton('Options', Point(0, 0), 168, 44));
+
+// Virtual joystick for mobile
+const stick = new UIJoystick(Point(90, 330), 60);
+
+ui.add(hp).add(score).add(menu).add(stick);
+
+canvas.startLoop((dt) => {
+  player.x += 220 * stick.value.x * dt;   // read the joystick like a gamepad
+  hp.value = player.health / 100;
+
+  canvas.clear();
+  // ...draw the game world...
+  ui.draw(canvas.ctx);                     // UI on top, in screen space
+});
+
+// ui.detach() when tearing down
+```
+
+| Widget | Description |
+|---|---|
+| `UIManager` | Attaches pointer events to the canvas, hit-tests topmost-first, `add/remove/clear`, `draw(ctx)`, `detach()` |
+| `UIButton` | Rounded-rect button — `text`, `onClick`, hover/pressed/disabled styles via `UIButtonStyle` |
+| `UIPanel` | Container with background/border; `layout: 'column' \| 'row'` auto-stacks children with `gap` & `padding` |
+| `UIText` | Positioned HUD/menu text (`color`, `font`, `align`, `baseline`) |
+| `UIProgressBar` | Health/loading bar — `value` 0–1, `fill`, `background`, optional centred `label` |
+| `UIJoystick` | Virtual on-screen stick — read `value {x, y}` (-1..1) each frame, `active` flag |
+| `UICheckbox` | Labelled toggle — `checked`, `onChange(checked)` |
+| `UISlider` | Draggable slider — `value`, `min`/`max`/`step`, `onChange(value)` |
+| `UIImageButton` | Image-skinned button — press-scale & hover-opacity states, optional spritesheet `sourceRect` |
+| `UINineSlice` | Nine-slice panel skin from an image/atlas region — corners stay crisp at any size |
+| `UIElement` | Abstract base class — extend it (implement `draw`) to build custom widgets |
+
+**Anchoring:** set `el.anchor = { h: 'right', v: 'top' }` and `el.anchorOffset = { x: 16, y: 16 }`
+to pin elements to canvas edges/centre — recomputed every frame, so resizes just work.
+
+**Keyboard navigation:** call `ui.enableKeyboardNav()` — Tab/arrows move focus between
+buttons/checkboxes/sliders, Enter/Space activates, Left/Right adjusts a focused slider,
+and a dashed focus ring is drawn automatically (`ui.focusRingColor`).
+
+All elements share `position`, `width`, `height`, `visible`, `enabled`,
+`hovered`, `pressed`, and `onClick` / `onPress` / `onRelease` callbacks.
+Works on desktop (mouse) and mobile (multi-touch: joystick + buttons at once).
+In React, attach via the canvas ref: `new UIManager(canvasRef.current.element)`.
+
+---
+
+### Game Utilities
+
+Small engines that remove the boilerplate around every game. All are
+plain objects driven by your loop's `dt` — call their `update(dt)` each frame.
+
+#### `Vec2` — vector math
+
+```ts
+const dir = Vec2.normalize(Vec2.sub(target, enemy.position));
+enemy.vx = dir.x * speed;
+```
+
+`of, add, sub, scale, dot, length, lengthSq, distance, normalize, lerp,
+rotate, clampLength, angle, fromAngle` — all pure, all return new objects.
+
+#### `Timers` — game-time timers
+
+```ts
+const timers = new Timers();
+timers.after(2, () => spawnBoss());              // one-shot
+const h = timers.every(0.5, () => spawnEnemy()); // repeating, h.cancel() to stop
+
+canvas.startLoop((dt) => { timers.update(dt); ... });
+```
+
+Unlike `setTimeout`, these advance with game time — they pause when your game pauses.
+
+#### `TweenManager` — property animation
+
+```ts
+const tweens = new TweenManager();
+tweens.to(player.position, { x: 400, y: 100 }, 0.6, 'easeOutQuad')
+      .then(() => console.log('arrived'));
+tweens.to(title, { opacity: 1 }, 1, 'easeOutCubic', 0.5);   // 0.5 s delay
+
+canvas.startLoop((dt) => { tweens.update(dt); ... });
+```
+
+Easings: `linear`, `easeIn/Out/InOutQuad`, `easeIn/Out/InOutCubic`,
+`easeOutBack`, `easeOutElastic`, `easeOutBounce`, or any custom `(t) => t` function.
+
+#### `ParticleEmitter` — pooled particles
+
+```ts
+const sparks = new ParticleEmitter({
+  colors: ['#fbbf24', '#f97316'], speed: [80, 260],
+  life: [0.3, 0.8], size: [2, 5], gravity: 400,
+});
+sparks.burst(x, y, 24);            // explosion
+sparks.rate = 40;                  // or continuous emission from sparks.position
+
+canvas.startLoop((dt) => {
+  sparks.update(dt);
+  canvas.add(sparks);              // it's an IDrawable
+});
+```
+
+#### `Scene` & `SceneManager` — game states
+
+```ts
+class MenuScene extends Scene {
+  update(dt) { if (Keyboard.justPressed('enter')) this.manager.switch(new GameScene()); }
+  draw(ctx)  { /* title screen */ }
+}
+
+const scenes = new SceneManager(new MenuScene());
+canvas.startLoop((dt) => {
+  canvas.clear();
+  scenes.update(dt);
+  scenes.draw(canvas.ctx);
+});
+```
+
+`switch(scene)` replaces everything; `push(scene)` / `pop()` create overlays
+(pause menu over a frozen game — only the top scene updates, all scenes draw).
 
 ---
 
@@ -941,6 +1260,7 @@ The root component. All shape components must be inside it.
 | `width` | `number` | `600` | Width in pixels |
 | `height` | `number` | `400` | Height in pixels |
 | `background` | `string` | transparent | CSS background |
+| `autoClear` | `boolean` | `false` | Clear before child shapes draw each render (no smearing) |
 | `ref` | `PivotCanvasHandle` | — | Access `.ctx`, `.element`, `.clear()` |
 
 #### `<PivotCircle>`, `<PivotRectangle>`, `<PivotLine>`, `<PivotLabel>`
@@ -1075,6 +1395,64 @@ sound.stop('bgm');
 sound.setMasterVolume(0.8);
 sound.mute();
 sound.unmute();
+```
+
+#### UI components — `<PivotUI>` and widgets
+
+Declare canvas UI in JSX. `<PivotUI>` hosts a `UIManager` inside the parent
+`<PivotCanvas>` and draws it every frame on top of your game; widget props
+sync to the underlying widgets on every render.
+
+```tsx
+const stickRef = useRef<UIJoystick | null>(null);
+const [hp, setHp] = useState(1);
+const [volume, setVolume] = useState(0.8);
+
+<PivotCanvas width={600} height={400} autoClear>
+  {/* ...game shapes... */}
+  <PivotUI>
+    <PivotButton x={230} y={170} text="Play" onClick={start} />
+    <PivotProgressBar x={16} y={16} value={hp} fill="#22c55e" label="HP" />
+    <PivotSlider x={16} y={50} value={volume} onChange={setVolume} />
+    <PivotCheckbox x={16} y={84} label="Sound" checked={soundOn} onChange={setSoundOn} />
+    <PivotUIText x={16} y={116} text={`Score: ${score}`} font="bold 18px Arial" />
+    <PivotJoystick x={80} y={330} radius={55} widgetRef={stickRef} />
+  </PivotUI>
+</PivotCanvas>
+```
+
+- Read continuous values (joystick) inside your game loop via `widgetRef`:
+  `stickRef.current?.value.x`.
+- Pass `manual` to `<PivotUI uiRef={uiRef} manual>` and call
+  `uiRef.current.draw(ctx)` yourself for exact draw-order control.
+- Every widget accepts `visible`, and interactive ones accept `disabled`.
+
+#### `useKeyPressed(key)` / `useGamepadConnected()`
+
+Reactive input state for menus and HUDs (they re-render the component —
+inside game loops, poll `Keyboard`/`GamepadInput` directly instead).
+
+```tsx
+const paused = useKeyPressed('escape');
+const hasGamepad = useGamepadConnected();
+```
+
+#### `useUIManager(canvasRef, setup?)`
+
+A `UIManager` bound to a `<PivotCanvas>` ref with automatic attach/detach.
+
+```tsx
+const canvasRef = useRef<PivotCanvasHandle>(null);
+const ui = useUIManager(canvasRef, (ui) => {
+  const btn = new UIButton('Play', Point(220, 180));
+  btn.onClick = () => setStarted(true);
+  ui.add(btn);
+});
+
+useGameLoop(() => {
+  const ctx = canvasRef.current?.ctx;
+  if (ctx && ui.current) ui.current.draw(ctx);
+});
 ```
 
 ---

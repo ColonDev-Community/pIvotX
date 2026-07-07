@@ -263,12 +263,22 @@ export function executeAudioCommands(commands: AudioCommand[]): void {
       case 'stopSound':       SoundManager.stop(cmd.name); break;
       case 'pauseSound':      SoundManager.pause(cmd.name); break;
       case 'resumeSound':     SoundManager.resume(cmd.name); break;
+      case 'playOneShot':     SoundManager.getSound(cmd.name)?.playOneShot(cmd.volume); break;
       case 'stopAllSounds':   SoundManager.stopAll(); break;
+      case 'pauseAllSounds':  SoundManager.pauseAll(); break;
+      case 'resumeAllSounds': SoundManager.resumeAll(); break;
       case 'setSoundVolume': {
         const s = SoundManager.getSound(cmd.name);
         if (s) s.volume = cmd.volume;
         break;
       }
+      case 'setPlaybackRate': {
+        const s = SoundManager.getSound(cmd.name);
+        if (s) s.playbackRate = cmd.rate;
+        break;
+      }
+      case 'fadeSound':       SoundManager.getSound(cmd.name)?.fadeTo(cmd.volume, cmd.seconds); break;
+      case 'fadeOutSound':    SoundManager.getSound(cmd.name)?.fadeOut(cmd.seconds); break;
       case 'setMasterVolume': SoundManager.masterVolume = cmd.volume; break;
       case 'mute':            SoundManager.mute(); break;
       case 'unmute':          SoundManager.unmute(); break;

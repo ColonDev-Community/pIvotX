@@ -57,3 +57,15 @@ export { aabbOverlap, aabbOverlapDepth, createAABB } from '../core/physics/colli
 // Re-export physics body helpers
 export { stepBody, resolveCollisions } from '../core/physics/body';
 export type { PhysicsBody, StaticRect, StepOptions, CollisionResult } from '../core/physics/body';
+
+// Re-export pure-math physics extras (no canvas dependency)
+export { circlesOverlap, circleAABBOverlap, circleAABBResolve, raycastAABB, raycastCircle, sweepCircleAABB } from '../core/physics/shapes';
+export type { CollisionCircle, RaycastHit } from '../core/physics/shapes';
+export { SpatialHash } from '../core/physics/SpatialHash';
+
+// Re-export platform-agnostic game utilities
+export { Vec2 }   from '../core/math/Vec2';
+export { Timers } from '../core/time/Timers';
+export type { TimerHandle } from '../core/time/Timers';
+export { Tween, TweenManager, Easing } from '../core/animation/Tween';
+export type { EasingName, EasingFunction } from '../core/animation/Tween';

@@ -22,10 +22,22 @@ export interface UseNativeSoundControls {
   pause(name: string): void;
   /** Resume a paused sound. */
   resume(name: string): void;
+  /** Play an overlapping fire-and-forget copy of a sound (rapid SFX). */
+  playOneShot(name: string, volume?: number): void;
   /** Stop all sounds. */
   stopAll(): void;
+  /** Pause every playing sound (e.g. pause menu). */
+  pauseAll(): void;
+  /** Resume every paused sound. */
+  resumeAll(): void;
   /** Set volume on a specific sound (0 – 1). */
   setVolume(name: string, volume: number): void;
+  /** Set playback speed/pitch on a specific sound (1 = normal). */
+  setPlaybackRate(name: string, rate: number): void;
+  /** Smoothly ramp a sound's volume to a target over `seconds`. */
+  fadeTo(name: string, volume: number, seconds: number): void;
+  /** Fade a sound to silence over `seconds`, then stop it. */
+  fadeOut(name: string, seconds: number): void;
   /** Set master volume (0 – 1). */
   setMasterVolume(volume: number): void;
   /** Mute all sounds. */
@@ -63,8 +75,14 @@ export function useNativeSound(): UseNativeSoundControls {
     stop:           (name) => registerAudioCommand({ type: 'stopSound', name }),
     pause:          (name) => registerAudioCommand({ type: 'pauseSound', name }),
     resume:         (name) => registerAudioCommand({ type: 'resumeSound', name }),
+    playOneShot:    (name, volume) => registerAudioCommand({ type: 'playOneShot', name, volume }),
     stopAll:        () => registerAudioCommand({ type: 'stopAllSounds' }),
+    pauseAll:       () => registerAudioCommand({ type: 'pauseAllSounds' }),
+    resumeAll:      () => registerAudioCommand({ type: 'resumeAllSounds' }),
     setVolume:      (name, volume) => registerAudioCommand({ type: 'setSoundVolume', name, volume }),
+    setPlaybackRate:(name, rate) => registerAudioCommand({ type: 'setPlaybackRate', name, rate }),
+    fadeTo:         (name, volume, seconds) => registerAudioCommand({ type: 'fadeSound', name, volume, seconds }),
+    fadeOut:        (name, seconds) => registerAudioCommand({ type: 'fadeOutSound', name, seconds }),
     setMasterVolume:(volume) => registerAudioCommand({ type: 'setMasterVolume', volume }),
     mute:           () => registerAudioCommand({ type: 'mute' }),
     unmute:         () => registerAudioCommand({ type: 'unmute' }),

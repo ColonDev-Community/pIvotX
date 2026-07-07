@@ -2590,3 +2590,167 @@ export default function MobilePlatformer() {
 4. **Camera** — `PivotNativeCamera` wraps world-space shapes. The HUD labels sit outside the camera, so they stay fixed on screen.
 5. **Coins** — simple circle-to-rect distance check. Collected coins are filtered out each frame.
 6. **Cross-platform** — this exact code runs on iOS, Android, and Expo Web with no changes.
+
+---
+
+# What's New in v2.0.0 — Engine Quick Reference
+
+v2.0.0 turns pIvotX from a drawing library into a full 2D game engine. This
+chapter is a compact tour of every new engine; the README has full API tables.
+
+## Input
+
+```js
+// Keyboard — no listeners to wire up
+if (Keyboard.isDown('left'))       player.vx = -200;
+if (Keyboard.justPressed('space')) player.jump();
+player.vx = 240 * Keyboard.getAxis('horizontal');   // arrows + WASD → -1..1
+
+// Gamepad — standard-mapping names, dead-zoned sticks, rumble
+const stick = GamepadInput.getStick('left');
+if (GamepadInput.justPressed('a')) player.jump();
+GamepadInput.vibrate(200, 0.8);
+
+// Pointer — unified mouse/touch on the canvas
+Pointer.attach(canvasElement);
+if (Pointer.justPressed) shootAt(Pointer.x, Pointer.y);
+
+// InputMap — name actions once, rebind anytime
+InputMap.bind('jump', ['space', 'w', 'gamepad:a']);
+if (InputMap.justPressed('jump')) player.jump();
+```
+
+`justPressed`/`justReleased` edges are rolled automatically by
+`canvas.startLoop` / `useGameLoop`; call `updateInputs()` yourself only in a
+custom rAF loop.
+
+## UI
+
+```js
+const ui = new UIManager(canvasElement);
+
+const play   = new UIButton('Play', Point(220, 180));
+play.onClick = () => scenes.switch(new GameScene());
+
+const hp     = new UIProgressBar(Point(16, 16), 200, 20, { fill: '#22c55e', label: 'HP' });
+const stick  = new UIJoystick(Point(80, 340), 55);        // mobile thumbstick
+const sound  = new UICheckbox('Sound', Point(40, 200), { checked: true });
+const volume = new UISlider(Point(40, 240), 180, { value: 0.8 });
+
+ui.add(play).add(hp).add(stick).add(sound).add(volume);
+ui.enableKeyboardNav();                                    // Tab/arrows/Enter
+
+// Pin to edges — survives canvas resizes
+hp.anchor = { h: 'left', v: 'top' };  hp.anchorOffset = { x: 16, y: 16 };
+
+canvas.startLoop((dt) => {
+  canvas.clear();
+  // ...draw world...
+  ui.draw(canvas.ctx);        // UI on top, one call
+});
+```
+
+Widgets: `UIButton`, `UIText`, `UIPanel` (column/row auto-layout),
+`UIProgressBar`, `UIJoystick`, `UICheckbox`, `UISlider`, `UIImageButton`,
+`UINineSlice` (9-slice skinning). Extend `UIElement` for custom widgets.
+
+## Sound
+
+```js
+const sfx = await Sound.load('/sfx/all.mp3');
+sfx.defineSprites({ jump: [0, 0.4], coin: [0.4, 0.5] });   // audio sprites
+sfx.playSprite('coin');
+sfx.playOneShot();            // overlapping fire-and-forget
+sfx.pan = -0.5;               // stereo position
+sfx.playbackRate = 1.2;       // pitch/speed
+
+await SoundManager.loadSound('theme', '/music/theme.mp3', { group: 'music' });
+SoundManager.setGroupVolume('music', 0.4);                 // bus volume
+SoundManager.getSound('theme').fadeIn(2);
+```
+
+## Physics
+
+```js
+const platforms = [
+  { x: 0,   y: 400, w: 800, h: 40 },                       // solid ground
+  { x: 200, y: 300, w: 120, h: 16, oneWay: true },         // jump-through ledge
+  { x: 400, y: 250, w: 100, h: 16, vx: 60 },               // moving platform (carries you)
+];
+
+canvas.startLoop((dt) => {
+  stepBody(player, platforms, dt, {
+    gravity: 1400, friction: 0.85, maxFallSpeed: 900, bounce: 0,
+  });
+  // Or collide straight against a Tilemap:
+  stepBodyOnTilemap(player, tilemap, dt, { gravity: 1400 });
+});
+
+// Broad-phase for hordes of objects
+const hash = new SpatialHash(64);
+hash.clear();
+enemies.forEach((e) => hash.insert(e, createAABB(e.x, e.y, e.w, e.h)));
+const nearby = hash.query(playerBounds);
+
+// Circles & rays
+circleAABBResolve(ball, wall.bounds);                      // slide along walls
+const hit = raycastAABB(eye, dir, wall.bounds, 300);       // line of sight
+```
+
+## Game utilities
+
+```js
+// Tween anything numeric
+const tweens = new TweenManager();
+tweens.to(player.position, { x: 400 }, 0.6, 'easeOutQuad').then(() => arrived());
+
+// Game-time timers (pause with your game)
+const timers = new Timers();
+timers.every(0.5, () => spawnEnemy());
+
+// Particles
+const sparks = new ParticleEmitter({ colors: ['#fbbf24'], gravity: 400 });
+sparks.burst(x, y, 24);
+
+// Scenes: menu → game → pause
+class MenuScene extends Scene {
+  update(dt) { if (Keyboard.justPressed('enter')) this.manager.switch(new GameScene()); }
+  draw(ctx)  { /* ... */ }
+}
+const scenes = new SceneManager(new MenuScene());
+
+// Vector math
+const dir = Vec2.normalize(Vec2.sub(target, enemy.position));
+
+canvas.startLoop((dt) => {
+  canvas.clear();
+  tweens.update(dt); timers.update(dt); sparks.update(dt);
+  scenes.update(dt); scenes.draw(canvas.ctx);
+  canvas.add(sparks);
+});
+```
+
+## Camera upgrades
+
+```js
+camera.follow(player.position, 0.1, dt);            // frame-rate-independent
+camera.followWithDeadZone(player.position, 120, 80); // platformer dead-zone
+camera.shake(8, 0.3);                                // screen shake
+camera.setZoom(2, 0.5);                              // animated zoom
+camera.update(dt);                                   // drives shake/zoom — call before begin()
+```
+
+## Crisp rendering & React extras
+
+```js
+const canvas = new Canvas('game', { hiDPI: true });  // Retina-sharp
+ui.pixelRatio = canvas.pixelRatio;                   // keep input aligned
+Pointer.pixelRatio = canvas.pixelRatio;
+```
+
+```tsx
+<PivotCanvas autoClear width={600} height={400}>     // no more smearing
+```
+
+React hooks: `useKeyPressed('escape')`, `useGamepadConnected()`,
+`useUIManager(canvasRef, setup)` — see the README for examples.

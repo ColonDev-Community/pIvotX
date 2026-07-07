@@ -14,6 +14,7 @@ export class SoundManager {
 
   private static _sounds = new Map<string, Sound>();
   private static _masterGain: GainNode | null = null;
+  private static _groupGains = new Map<string, GainNode>();
   private static _muted = false;
   private static _preMuteVolume = 1;
 
@@ -35,12 +36,30 @@ export class SoundManager {
    * @example
    * await SoundManager.loadSound('jump', '/sfx/jump.mp3');
    */
-  static async loadSound(name: string, src: string): Promise<Sound> {
-    const ctx = Sound.getAudioContext();
-    const response = await fetch(src);
-    const arrayBuffer = await response.arrayBuffer();
-    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
-    const sound = new Sound(audioBuffer, ctx, SoundManager._getMasterGain());
+  /** Lazily create a named group GainNode routed through the master gain. */
+  private static _getGroupGain(group: string): GainNode {
+    let gain = SoundManager._groupGains.get(group);
+    if (!gain) {
+      const ctx = Sound.getAudioContext();
+      gain = ctx.createGain();
+      gain.connect(SoundManager._getMasterGain());
+      SoundManager._groupGains.set(group, gain);
+    }
+    return gain;
+  }
+
+  static async loadSound(
+    name: string,
+    src: string,
+    options?: { group?: string },
+  ): Promise<Sound> {
+    const audioBuffer = await Sound.loadBuffer(src);
+    // Dispose any previous sound stored under the same name
+    SoundManager._sounds.get(name)?.dispose();
+    const destination = options?.group
+      ? SoundManager._getGroupGain(options.group)
+      : SoundManager._getMasterGain();
+    const sound = new Sound(audioBuffer, Sound.getAudioContext(), destination);
     SoundManager._sounds.set(name, sound);
     return sound;
   }
@@ -58,10 +77,11 @@ export class SoundManager {
    */
   static async loadSounds<T extends Record<string, string>>(
     manifest: T,
+    options?: { group?: string },
   ): Promise<{ [K in keyof T]: Sound }> {
     const keys = Object.keys(manifest) as (keyof T)[];
     const promises = keys.map((key) =>
-      SoundManager.loadSound(key as string, manifest[key] as string),
+      SoundManager.loadSound(key as string, manifest[key] as string, options),
     );
     const loaded = await Promise.all(promises);
     const result = {} as { [K in keyof T]: Sound };
@@ -121,6 +141,60 @@ export class SoundManager {
   /** Stop all sounds. */
   static stopAll(): void {
     SoundManager._sounds.forEach((s) => s.stop());
+  }
+
+  /** Pause every currently playing sound (e.g. when opening a pause menu). */
+  static pauseAll(): void {
+    SoundManager._sounds.forEach((s) => { if (s.playing) s.pause(); });
+  }
+
+  /** Resume every paused sound. */
+  static resumeAll(): void {
+    SoundManager._sounds.forEach((s) => { if (s.paused) s.resume(); });
+  }
+
+  /** Set the volume of a named sound (0 – 1). */
+  static setVolume(name: string, volume: number): void {
+    const sound = SoundManager._sounds.get(name);
+    if (sound) sound.volume = volume;
+  }
+
+  // ── Unloading ────────────────────────────────────────────────────────────
+
+  /** Stop, dispose, and remove a named sound. */
+  static unload(name: string): void {
+    const sound = SoundManager._sounds.get(name);
+    if (sound) {
+      sound.dispose();
+      SoundManager._sounds.delete(name);
+    }
+  }
+
+  /** Stop, dispose, and remove every managed sound. */
+  static unloadAll(): void {
+    SoundManager._sounds.forEach((s) => s.dispose());
+    SoundManager._sounds.clear();
+  }
+
+  // ── Group (bus) volume ───────────────────────────────────────────────────
+
+  /**
+   * Set the volume of a sound group (bus), 0 – 1.
+   * Assign sounds to groups at load time:
+   * `SoundManager.loadSound('coin', '/sfx/coin.mp3', { group: 'sfx' })`.
+   * Group volume multiplies with each sound's own volume and the master volume.
+   *
+   * @example
+   * SoundManager.setGroupVolume('sfx', 0.8);
+   * SoundManager.setGroupVolume('music', 0.4);
+   */
+  static setGroupVolume(group: string, volume: number): void {
+    SoundManager._getGroupGain(group).gain.value = Math.max(0, Math.min(1, volume));
+  }
+
+  /** Current volume of a sound group (1 if the group has never been used). */
+  static getGroupVolume(group: string): number {
+    return SoundManager._groupGains.get(group)?.gain.value ?? 1;
   }
 
   // ── Master volume ────────────────────────────────────────────────────────

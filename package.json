@@ -71,6 +71,8 @@
     "type-check": "tsc --noEmit",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "test:only": "node --test tests/*.test.mjs",
     "prepublishOnly": "npm run lint && npm run type-check && npm run build"
   },
   "peerDependencies": {
