@@ -39,6 +39,7 @@ import { executeCommands, executeAudioCommands } from './web/executeCommands';
 import { UIManager } from '../core/ui/UIManager';
 import { reconcileUI, createUIReconcilerState } from './web/uiReconciler';
 import { nativeInputStore } from './input/nativeInputStore';
+import { drainGlobalAudio } from './audio/globalAudioQueue';
 
 // U+2028/U+2029 are valid inside JSON strings but are line terminators in
 // JavaScript source on older engines — escape them so injected JSON can never
@@ -161,8 +162,9 @@ const WebCanvas = forwardRef<
       ui.draw(ctx);
     }
 
-    // Flush audio commands (one-shot, then clear)
-    const audioCmds = audioCommandsRef.current;
+    // Flush audio commands (one-shot, then clear) — including any enqueued
+    // by useNativeSound outside the canvas
+    const audioCmds = [...audioCommandsRef.current, ...drainGlobalAudio()];
     if (audioCmds.length > 0) {
       executeAudioCommands(audioCmds);
       audioCommandsRef.current = [];
@@ -306,6 +308,8 @@ const NativeWebViewCanvas = forwardRef<
   useEffect(() => {
     const cmds = commandsRef.current;
     const hasUI = uiWidgetsRef.current.length > 0 || lastUIJsonRef.current !== '';
+    const globalAudio = drainGlobalAudio();
+    if (globalAudio.length > 0) audioCommandsRef.current.push(...globalAudio);
     if (cmds.length === 0 && audioCommandsRef.current.length === 0 && !hasUI) return;
 
     if (cmds.length > 0) {

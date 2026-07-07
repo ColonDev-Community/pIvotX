@@ -15,6 +15,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - README security note documenting the trust model of `script` mode / `injectScript()` (same class as `react-native-webview`'s `injectJavaScript`: only run code you control).
 - Removed the only dynamic-execution site in the library: `injectScript()`'s web fallback used `new Function` (flagged by supply-chain scanners, blocked by CSP without `unsafe-eval`, and documented as "not fully supported" anyway). It now warns and no-ops on web; the native WebView path is unchanged.
 
+### Fixed
+
+- `useNativeSound()` threw "Native shape components must be inside \<PivotNativeCanvas\>" when called from the component that *renders* the canvas (the natural place to call it). The hook is now context-optional: outside the canvas, commands go to a global queue that any mounted canvas drains on its next flush.
+
 ---
 
 ## [2.0.1] — 2026-07-07
