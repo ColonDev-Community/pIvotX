@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [2.0.1] — 2026-07-07
+
+### Fixed
+
+- `<PivotUI>` widgets were invisible in games that re-render every frame with `<PivotCanvas autoClear>` — the rAF repaint raced with the render-phase clear, so the UI was erased before every paint. `PivotUI` now also repaints in a per-render effect (running after sibling shape effects when placed as the last child), keeping the UI on top in both static and per-frame-render games.
+
+### Changed
+
+- Rollup build banner now reads the version from `package.json` instead of a hardcoded string.
+
+---
+
 ## [2.0.0] — 2026-07-07
 
 ### Added — Core
