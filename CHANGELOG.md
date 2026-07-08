@@ -5,11 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [2.0.3] — 2026-07-07
+## [2.1.0] — 2026-07-07
+
+### Added
+
+- **`baseUrl` prop on `PivotNativeCanvas`** — gives the WebView page a real origin. HTML loaded from a string has a `null` origin, which dev servers reject (Expo/Metro's CORS middleware throws `TypeError: Invalid URL`, so sounds/images never load on device in development). Pass your asset server's origin (e.g. `new URL(assetUri).origin`) to make WebView asset fetches same-origin.
+- **Post-load resync** — the canvas replays recorded sound loads and the last known UI widget state on the WebView's `onLoadEnd`, so state sent during page load (or before a rotation-triggered reload) is never lost.
+- GUIDE: new "Levels That Fit Every Screen" chapter — jump-physics sizing math, clamped layout bands, headless reachability simulation, and rotation/resize state remapping.
 
 ### Fixed
 
-- **Asset fetches from the WebView failed against dev servers** — HTML loaded from a string gives the page a \`null\` origin, which Expo/Metro's CORS middleware rejects (\`TypeError: Invalid URL\` server-side; sounds/images never load on device in development). New \`baseUrl\` prop on \`PivotNativeCanvas\`: pass your asset server's origin (e.g. \`new URL(assetUri).origin\`) to make WebView asset fetches same-origin.
 - **No audio on Android devices** — the WebView's autoplay policy keeps Web Audio suspended unless resumed from inside a real user-gesture handler *in the WebView* (commands injected from RN don't qualify). The canvas now sets `mediaPlaybackRequiresUserGesture={false}`, and the bridge additionally resumes the AudioContext inside its own touchstart handler on the first touch — sound works after the first tap on any device.
 - **WebView startup race dropped the UI and sound loads on devices.** The RN flush effect injects into the WebView immediately on mount — before the page and engine have loaded — so the first UI payload and the one-shot `loadSound` commands fell into the void, and the UI dirty-check then believed the widgets were already delivered (on-screen controllers never appeared unless the UI JSON later changed). The canvas now resyncs on the WebView's `onLoadEnd`: it replays the recorded sound loads and the last known UI state. Draw/audio injections are also guarded so pre-load injections no longer throw.
 
