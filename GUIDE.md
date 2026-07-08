@@ -2754,3 +2754,114 @@ Pointer.pixelRatio = canvas.pixelRatio;
 
 React hooks: `useKeyPressed('escape')`, `useGamepadConnected()`,
 `useUIManager(canvasRef, setup)` — see the README for examples.
+
+---
+
+# Levels That Fit Every Screen
+
+A platformer that works on your desktop can be **physically impossible** on a
+tablet. This bit our own demo games twice; here is the exact failure and fix.
+
+## The two mistakes
+
+**1. Positioning platforms as screen percentages** (`x: W * 0.62`). The *gap*
+between platforms then scales with the device. Measured with jump power 640,
+gravity 1500, run speed 260: the same ledge gap was 74dp on a 360dp phone but
+**312dp on an 800dp tablet — against a maximum jump carry of ~182dp.**
+Unreachable, no matter the player's skill.
+
+**2. Sizing rises without the jump math.** A 122dp rise against a 137dp jump
+apex (15dp margin) feels like "the jump doesn't work" on every device.
+
+## The math
+
+```js
+const apex = (JUMP_POWER * JUMP_POWER) / (2 * GRAVITY);   // 680²/3000 ≈ 154
+
+// Horizontal carry while landing `rise` higher (larger root of J·t − g/2·t² = rise):
+const t = (J + Math.sqrt(J * J - 2 * GRAVITY * rise)) / GRAVITY;
+const carry = RUN_SPEED * t;                              // ≈182 for rise = 80
+```
+
+**Rules of thumb:** rises ≤ ⅔ of apex, horizontal edge gaps ≤ ½ of carry.
+
+## The fix: a clamped layout band
+
+```js
+const B = Math.min(W - 40, 560);   // band width — capped, never scales up
+const L = W / 2 - B / 2;           // centred
+
+const platforms = [
+  { x: 0, y: H - 48, w: W, h: 48 },                                      // ground
+  { x: L,            y: H - 148, w: 150, h: 14, oneWay: true },          // ~100dp rises
+  { x: L + B * 0.34, y: H - 248, w: 150, h: 14, oneWay: true },          // ~60dp gaps
+  { x: L + B * 0.62, y: H - 348, w: 110, h: 16, vx: 70, oneWay: true },  // elevator
+];
+// Moving platforms patrol the band, not the screen:
+if (mover.x < L + B * 0.44) mover.vx = Math.abs(mover.vx);
+if (mover.x + mover.w > L + B) mover.vx = -Math.abs(mover.vx);
+```
+
+Wider screens get margin, not longer jumps. Vertical offsets from the bottom
+(`H - 148`) are constant distances, so tall screens just get more sky.
+
+## Prove it with a simulation
+
+`stepBody` is pure and deterministic — drive it headlessly with a bang-bang
+controller (run toward the target, jump when in range) at several screen
+sizes. If the controller can't finish the route, players can't either. This
+caught both of our bugs, including a solid moving platform that blocked jumps
+from below (fix: `oneWay: true` — a jump-through elevator).
+
+## Handling rotation & live resize
+
+The band layout fixes *initial* sizing — rotation is its own trap, with two
+failure modes we hit in our own demos:
+
+**1. The world never relayouts.** `useRef(createWorld(W, H))` freezes the
+level at mount-time dimensions; after rotating, the ground sits at portrait
+coordinates — off-screen. The *canvas* resizes, so it looks like a canvas
+bug, but the *level* didn't move.
+
+**2. The obvious fix resets the game.** Rebuilding the world in a
+`useEffect([W, H])` relayouts correctly — and throws away the player's run
+on every rotation.
+
+**The fix: remap state relationally.** Rebuild the static geometry; carry
+the dynamic state across in layout-relative terms:
+
+```js
+const dims = useRef({ W, H });
+useEffect(() => {
+  const { W: oW, H: oH } = dims.current;
+  if (oW === W && oH === H) return;          // guard the initial mount
+  dims.current = { W, H };
+
+  const oldB = Math.min(oW - 40, 560), oldL = oW / 2 - oldB / 2;
+  const next = createWorld(W, H);            // fresh geometry, new band
+  next.score = world.current.score;          // progress carries over
+  world.current.coins.forEach((c, i) => { if (next.coins[i]) next.coins[i].taken = c.taken; });
+
+  const p = world.current.player;            // band-relative x,
+  const relX = (p.x - oldL) / oldB;          // ground-relative y,
+  const bottomOff = oH - (p.y + p.height);   // velocity intact
+  next.player.x = Math.max(0, Math.min(W - p.width, L + relX * B));
+  next.player.y = Math.max(0, Math.min(H - 48 - p.height, H - bottomOff - p.height));
+  next.player.vx = p.vx; next.player.vy = p.vy;
+
+  world.current = next;
+}, [W, H]);
+```
+
+For free-flowing games without a band (endless flappers etc.), scale
+proportionally instead: `x *= W/oldW; gapY *= H/oldH` for every entity.
+
+**React Native caveat:** a size change regenerates the WebView page (that is
+how the canvas resizes), destroying the Web Audio context. pIvotX ≥ 2.0.3
+replays widget state and sound loads automatically after the reload, but a
+*playing* music loop can't legally resume without a user gesture — re-arm it
+(`musicStarted.current = false` in the same effect) so it restarts on the
+next tap.
+
+**Known edge case:** a moving platform's patrol phase doesn't carry across
+the remap — a player standing on it mid-rotation may drop one step.

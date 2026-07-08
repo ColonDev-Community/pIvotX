@@ -279,6 +279,7 @@ const NativeWebViewCanvas = forwardRef<
     onGameEvent,
     onTouch,
     worldSpaceTouch = false,
+    baseUrl,
     allowFileAccess = true,
     mixedContentMode = 'always',
     originWhitelist = ['*'],
@@ -291,6 +292,9 @@ const NativeWebViewCanvas = forwardRef<
   const { commandsRef, audioCommandsRef, uiWidgetsRef, uiHandlersRef, cameraRef, contextValue } =
     useCommandCollection();
   const lastUIJsonRef = useRef('');
+  // loadSound commands are one-shot but must survive the page-load race —
+  // recorded here and replayed once the WebView finishes loading.
+  const soundLoadsRef = useRef(new Map<string, AudioCommand>());
 
   // ── Imperative handle ──────────────────────────────────────────────────
 
@@ -316,7 +320,7 @@ const NativeWebViewCanvas = forwardRef<
       const frame: DrawCommand[] = [{ type: 'clear' }, ...cmds];
       const json = JSON.stringify(frame);
       webViewRef.current?.injectJavaScript(
-        `window.__pivotDraw(${toJsSource(json)}); true;`,
+        `if (window.__pivotDraw) window.__pivotDraw(${toJsSource(json)}); true;`,
       );
     }
 
@@ -335,13 +339,38 @@ const NativeWebViewCanvas = forwardRef<
     // Flush audio commands (one-shot, then clear)
     const audioCmds = audioCommandsRef.current;
     if (audioCmds.length > 0) {
+      for (const cmd of audioCmds) {
+        if (cmd.type === 'loadSound') soundLoadsRef.current.set(cmd.name, cmd);
+      }
       const audioJson = JSON.stringify(audioCmds);
       webViewRef.current?.injectJavaScript(
-        `window.__pivotAudio(${toJsSource(audioJson)}); true;`,
+        `if (window.__pivotAudio) window.__pivotAudio(${toJsSource(audioJson)}); true;`,
       );
       audioCommandsRef.current = [];
     }
   });
+
+  // ── Post-load resync ───────────────────────────────────────────────────
+  //
+  // Anything injected while the WebView was still loading its HTML + engine
+  // fell into the void — and the UI dirty-check would otherwise believe it
+  // was delivered. Once the page is ready, replay the sound loads and the
+  // last known UI state.
+  const handleLoadEnd = useCallback(() => {
+    const wv = webViewRef.current;
+    if (!wv) return;
+    if (soundLoadsRef.current.size > 0) {
+      const loads = [...soundLoadsRef.current.values()];
+      wv.injectJavaScript(
+        `if (window.__pivotAudio) window.__pivotAudio(${toJsSource(JSON.stringify(loads))}); true;`,
+      );
+    }
+    if (lastUIJsonRef.current !== '') {
+      wv.injectJavaScript(
+        `if (window.__pivotUI) window.__pivotUI(${toJsSource(lastUIJsonRef.current)}); true;`,
+      );
+    }
+  }, []);
 
   // ── WebView message handler ────────────────────────────────────────────
 
@@ -393,13 +422,15 @@ const NativeWebViewCanvas = forwardRef<
     <NativeDrawContext.Provider value={contextValue}>
       <WebView
         ref={webViewRef}
-        source={{ html }}
+        source={baseUrl ? { html, baseUrl } : { html }}
         style={[{ width, height }, style as Record<string, unknown>]}
         scrollEnabled={false}
         bounces={false}
         originWhitelist={originWhitelist}
         javaScriptEnabled={true}
         onMessage={handleMessage}
+        onLoadEnd={handleLoadEnd}
+        mediaPlaybackRequiresUserGesture={false}
         allowFileAccess={allowFileAccess}
         mixedContentMode={mixedContentMode}
       />

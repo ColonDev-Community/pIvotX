@@ -18,13 +18,15 @@ declare module 'react-native-webview' {
 
   export interface WebViewProps {
     ref?:               Ref<WebView>;
-    source?:            { html: string } | { uri: string };
+    source?:            { html: string; baseUrl?: string } | { uri: string };
     style?:             unknown;
     scrollEnabled?:     boolean;
     bounces?:           boolean;
     originWhitelist?:   string[];
     javaScriptEnabled?: boolean;
     onMessage?:         (event: WebViewMessageEvent) => void;
+    onLoadEnd?:         () => void;
+    mediaPlaybackRequiresUserGesture?: boolean;
     allowFileAccess?:   boolean;
     mixedContentMode?:  'never' | 'always' | 'compatibility';
     children?:          React.ReactNode;

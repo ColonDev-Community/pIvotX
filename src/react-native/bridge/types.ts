@@ -321,6 +321,16 @@ export interface PivotNativeCanvasProps {
   /** Children — PivotNative* shape components. */
   children?:  React.ReactNode;
 
+  /**
+   * Base URL for the WebView page (native only). The canvas HTML is loaded
+   * from a string, which gives the page a \`null\` origin — dev servers
+   * (including Expo/Metro's CORS middleware) reject requests from it, so
+   * sounds/images fail to load in development. Pass your asset server's
+   * origin (e.g. \`new URL(someAssetUri).origin\`) to make asset fetches
+   * same-origin.
+   */
+  baseUrl?: string;
+
   // ── WebView hardening (native only) ────────────────────────────────────
   /**
    * Allow the WebView to load file:// URLs (needed for bundled local
